@@ -42,16 +42,6 @@ export function getActiveWorkout(userId: string) {
   });
 }
 
-export async function getRecentWorkouts(userId: string, take = 10) {
-  const workouts = await prisma.workout.findMany({
-    where: { userId, finishedAt: { not: null } },
-    orderBy: { date: "desc" },
-    take,
-    include: workoutInclude,
-  });
-  return workouts.map(summarizeWorkout);
-}
-
 export async function getWorkoutHistory(userId: string) {
   const workouts = await prisma.workout.findMany({
     where: { userId, finishedAt: { not: null } },
@@ -97,11 +87,15 @@ function emptyTotals(): Totals {
 }
 
 /**
- * Everything the dashboard scoreboard needs, from a single scan of the user's
- * finished workouts: lifetime totals, this-week vs last-week, and the current
- * consecutive-week training streak. All weights in `displayUnit`.
+ * Everything the dashboard needs, from a single scan of the user's finished
+ * workouts: lifetime totals, this-week vs last-week, the consecutive-week
+ * streak, and the most recent few (summarised). All weights in `displayUnit`.
  */
-export async function getDashboardStats(userId: string, displayUnit: WeightUnit) {
+export async function getDashboardData(
+  userId: string,
+  displayUnit: WeightUnit,
+  recentCount = 6,
+) {
   const workouts = await prisma.workout.findMany({
     where: { userId, finishedAt: { not: null } },
     orderBy: { date: "desc" },
@@ -140,11 +134,14 @@ export async function getDashboardStats(userId: string, displayUnit: WeightUnit)
   }
 
   return {
-    lifetime,
-    thisWeek,
-    lastWeek,
-    streakWeeks: weeklyStreak(workouts.map((w) => w.date)),
-    lastWorkoutDate: workouts[0]?.date ?? null,
+    stats: {
+      lifetime,
+      thisWeek,
+      lastWeek,
+      streakWeeks: weeklyStreak(workouts.map((w) => w.date)),
+      lastWorkoutDate: workouts[0]?.date ?? null,
+    },
+    recent: workouts.slice(0, recentCount).map(summarizeWorkout),
   };
 }
 
@@ -155,4 +152,4 @@ function add(acc: Totals, e: Totals) {
   acc.volume += e.volume;
 }
 
-export type DashboardStats = Awaited<ReturnType<typeof getDashboardStats>>;
+export type DashboardStats = Awaited<ReturnType<typeof getDashboardData>>["stats"];

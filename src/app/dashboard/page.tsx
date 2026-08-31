@@ -7,8 +7,7 @@ import { formatDate } from "@/lib/training";
 import {
   type DashboardStats,
   getActiveWorkout,
-  getDashboardStats,
-  getRecentWorkouts,
+  getDashboardData,
 } from "@/lib/queries/workouts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,10 +28,9 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const [active, recent, stats] = await Promise.all([
+  const [active, { stats, recent }] = await Promise.all([
     getActiveWorkout(user.id),
-    getRecentWorkouts(user.id, 6),
-    getDashboardStats(user.id, user.weightUnit),
+    getDashboardData(user.id, user.weightUnit),
   ]);
 
   const unit = user.weightUnit;
