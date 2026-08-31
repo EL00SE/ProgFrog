@@ -204,9 +204,9 @@ export function WorkoutLogger({
     <div className="flex flex-col gap-4">
       <div className="bg-muted/40 grid grid-cols-3 gap-2 rounded-xl border p-3 text-center">
         <SummaryStat label="Exercises" value={String(exercises.length)} />
-        <SummaryStat label="Working sets" value={String(totalSets)} />
+        <SummaryStat label="Sets" value={String(totalSets)} />
         <SummaryStat
-          label={`Volume (${unit.toLowerCase()})`}
+          label={`Weight lifted (${unit.toLowerCase()})`}
           value={Math.round(totalVolume).toLocaleString("en-US")}
         />
       </div>
@@ -554,7 +554,7 @@ function ExerciseCard({
           })()}
           <p className="text-muted-foreground px-1 text-[0.7rem]">
             Tap a set&rsquo;s type — <b>W</b> warm-up · <b>D</b> drop set · <b>F</b> to
-            failure (warm-ups don&rsquo;t count toward volume).
+            failure. Warm-ups don&rsquo;t count toward your totals.
           </p>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div className="flex gap-1">
@@ -575,7 +575,7 @@ function ExerciseCard({
             </div>
             {!timed && best > 0 && (
               <span className="text-muted-foreground text-xs">
-                Best e1RM {formatWeight(best, unit)}
+                Est. 1-rep max {formatWeight(best, unit)}
               </span>
             )}
           </div>

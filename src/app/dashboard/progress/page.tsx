@@ -54,7 +54,7 @@ export default async function ProgressPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Progress"
-        description={`Estimated 1RM, top set, and volume per session — shown in ${user.weightUnit.toLowerCase()}.`}
+        description={`How your strength is trending — estimated 1-rep max (the most you could lift once), heaviest set, and total weight lifted per workout, in ${user.weightUnit.toLowerCase()}.`}
       />
 
       {nothingTracked ? (

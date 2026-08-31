@@ -67,8 +67,8 @@ export default async function WorkoutsPage() {
                       day: "numeric",
                     })}
                     {" · "}
-                    {w.exerciseCount} exercises · {w.setCount} working sets ·{" "}
-                    {formatWeight(w.volume, w.unit)}
+                    {w.exerciseCount} exercises · {w.setCount} sets ·{" "}
+                    {formatWeight(w.volume, w.unit)} lifted
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-1.5">

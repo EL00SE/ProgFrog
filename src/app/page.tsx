@@ -16,7 +16,7 @@ const features = [
   {
     icon: TrendingUp,
     title: "See progress",
-    body: "Every exercise gets a trend line — estimated 1RM, top set and volume over time — plus your all-time PRs.",
+    body: "Every exercise gets a trend line — your estimated 1-rep max, heaviest set and total weight lifted over time — plus your all-time bests.",
   },
   {
     icon: ListChecks,

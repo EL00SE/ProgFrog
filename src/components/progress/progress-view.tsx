@@ -34,9 +34,9 @@ type Option = { value: string; label: string };
 type View = "exercise" | "role";
 
 const chartConfig = {
-  best1RM: { label: "Est. 1RM", color: "var(--chart-1)" },
-  topSetWeight: { label: "Top set", color: "var(--chart-2)" },
-  volume: { label: "Volume", color: "var(--chart-3)" },
+  best1RM: { label: "Est. 1-rep max", color: "var(--chart-1)" },
+  topSetWeight: { label: "Heaviest set", color: "var(--chart-2)" },
+  volume: { label: "Weight lifted", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 export function ProgressView({
@@ -113,7 +113,7 @@ export function ProgressView({
         <>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <Stat
-              label="Best est. 1RM"
+              label="Est. 1-rep max"
               value={formatWeight(series.prs.best1RM, unit)}
               sub={
                 series.prs.best1RMDate ? formatDate(series.prs.best1RMDate) : undefined
@@ -121,7 +121,7 @@ export function ProgressView({
             />
             <Stat label="Heaviest set" value={formatWeight(series.prs.maxWeight, unit)} />
             <Stat
-              label="Best session volume"
+              label="Best workout"
               value={formatWeight(series.prs.bestVolume, unit)}
             />
           </div>
@@ -132,8 +132,8 @@ export function ProgressView({
               <CardDescription>
                 {view === "role"
                   ? "Follows whatever exercise filled this role, over "
-                  : "Estimated 1RM and top-set weight over "}
-                {data.length} {data.length === 1 ? "session" : "sessions"}
+                  : "Estimated 1-rep max and heaviest-set weight over "}
+                {data.length} {data.length === 1 ? "workout" : "workouts"}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -193,8 +193,10 @@ export function ProgressView({
 
           <Card>
             <CardHeader>
-              <CardTitle>Session volume</CardTitle>
-              <CardDescription>Working weight × reps per session</CardDescription>
+              <CardTitle>Total weight lifted</CardTitle>
+              <CardDescription>
+                Weight × reps added up across the workout (warm-ups excluded)
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <ChartContainer config={chartConfig} className="h-48 w-full sm:h-56">

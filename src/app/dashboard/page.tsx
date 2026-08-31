@@ -76,7 +76,7 @@ export default async function DashboardPage() {
             </p>
             <p className="text-muted-foreground max-w-sm text-sm">
               Log your first workout and this dashboard turns into a scoreboard — streaks,
-              total volume, weekly progress.
+              total weight lifted, weekly progress.
             </p>
             <StartWorkoutButton label="Log your first workout" />
           </CardContent>
@@ -197,7 +197,7 @@ function Scoreboard({ stats, unit }: { stats: DashboardStats; unit: "KG" | "LB" 
         <div className="grid grid-cols-3 gap-3">
           <BigStat label="Workouts" value={formatCompact(lifetime.workouts)} />
           <BigStat
-            label={`Volume · ${unit.toLowerCase()}`}
+            label={`Weight lifted · ${unit.toLowerCase()}`}
             value={formatCompact(lifetime.volume)}
           />
           <BigStat label="Reps" value={formatCompact(lifetime.reps)} />
@@ -212,7 +212,7 @@ function Scoreboard({ stats, unit }: { stats: DashboardStats; unit: "KG" | "LB" 
           <WeekStat label="Workouts" value={thisWeek.workouts} prev={lastWeek.workouts} />
           <WeekStat label="Sets" value={thisWeek.sets} prev={lastWeek.sets} />
           <WeekStat
-            label={`Volume · ${unit.toLowerCase()}`}
+            label={`Weight lifted · ${unit.toLowerCase()}`}
             value={thisWeek.volume}
             prev={lastWeek.volume}
             format={formatCompact}

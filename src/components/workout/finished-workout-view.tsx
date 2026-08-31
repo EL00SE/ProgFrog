@@ -51,8 +51,8 @@ export function FinishedWorkoutView({
           <p className="text-muted-foreground text-sm">{dateLabel}</p>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
           <p className="text-muted-foreground text-sm">
-            {workout.exercises.length} exercises · {working.length} working sets ·{" "}
-            {formatWeight(volume, unit)} volume
+            {workout.exercises.length} exercises · {working.length} sets ·{" "}
+            {formatWeight(volume, unit)} lifted
           </p>
         </div>
         <div className="flex gap-2">
@@ -195,10 +195,10 @@ function ExerciseBlock({
             <>
               {top ? (
                 <span>
-                  Top set {formatWeight(top.weight, unit)} × {top.reps}
+                  Heaviest set {formatWeight(top.weight, unit)} × {top.reps}
                 </span>
               ) : null}
-              {best > 0 ? <span>e1RM {formatWeight(best, unit)}</span> : null}
+              {best > 0 ? <span>est. 1-rep max {formatWeight(best, unit)}</span> : null}
             </>
           )}
         </div>
