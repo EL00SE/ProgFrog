@@ -79,6 +79,19 @@ function formatPrev(prev: ExercisePrev, unit: "KG" | "LB", timed: boolean): stri
   )}${more > 0 ? ` +${more}` : ""}${timed ? "" : ` ${unit.toLowerCase()}`}`;
 }
 
+/** One-line recap for a collapsed, finished exercise: "4 sets · 560 kg". */
+function collapsedSummary(we: WE, unit: "KG" | "LB"): string {
+  const timed = we.exercise?.isTimed ?? false;
+  const working = we.sets.filter(isWorkingSet);
+  const n = working.length;
+  if (timed) {
+    const secs = working.reduce((x, s) => x + (s.seconds ?? 0), 0);
+    return `${n} ${n === 1 ? "hold" : "holds"} · ${secs}s`;
+  }
+  const vol = working.reduce((x, s) => x + s.reps * s.weight, 0);
+  return `${n} ${n === 1 ? "set" : "sets"} · ${formatWeight(vol, unit)}`;
+}
+
 function loggedSetCount(we: WE) {
   const timed = we.exercise?.isTimed ?? false;
   return we.sets.filter(
@@ -392,7 +405,7 @@ export function WorkoutLogger({
   const doneCount = exercises.filter(isExerciseDone).length;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {(!online || syncPending > 0) && (
         <div
           className={cn(
@@ -438,6 +451,13 @@ export function WorkoutLogger({
             />
           </div>
         </div>
+      )}
+
+      {exercises.length > 0 && (
+        <p className="text-muted-foreground px-1 text-xs">
+          Tap a set number to tag it — <b>W</b> warm-up (not counted) · <b>D</b> drop ·{" "}
+          <b>F</b> failure.
+        </p>
       )}
 
       {exercises.length === 0 && (
@@ -632,45 +652,78 @@ function ExerciseCard({
         : `Target: ${we.targetSets ?? "—"} × ${we.targetReps ?? "—"}`
       : null;
 
+  // Exercises already finished when the logger loaded start collapsed; ones you
+  // complete during the session stay open until you collapse them by hand.
+  const [collapsed, setCollapsed] = React.useState(done && !inGroup);
+
+  if (collapsed && we.exercise) {
+    return (
+      <Card size="sm" className={cn(inGroup && "shadow-none", "opacity-80")}>
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="flex w-full items-center gap-2 text-left"
+            aria-label={`Expand ${we.exercise.name}`}
+          >
+            <span className="bg-primary text-primary-foreground flex size-5 shrink-0 items-center justify-center rounded-full">
+              <Check className="size-3" />
+            </span>
+            <span className="font-heading min-w-0 flex-1 truncate font-medium">
+              {we.exercise.name}
+            </span>
+            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+              {collapsedSummary(we, unit)}
+            </span>
+            <ChevronDown className="text-muted-foreground size-4 shrink-0" />
+          </button>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
-    <Card className={cn(inGroup && "shadow-none", done && "opacity-80")}>
+    <Card size="sm" className={cn(inGroup && "shadow-none", done && "opacity-80")}>
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-semibold tabular-nums",
-                  done
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
+            {done && we.exercise ? (
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="flex items-center gap-2 text-left"
+                aria-label={`Collapse ${we.exercise.name}`}
               >
-                {done ? <Check className="size-3" /> : index + 1}
-              </span>
-              <span className="font-heading font-medium">
-                {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
-              </span>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="bg-primary text-primary-foreground flex size-5 shrink-0 items-center justify-center rounded-full">
+                  <Check className="size-3" />
+                </span>
+                <span className="font-heading font-medium">{we.exercise.name}</span>
+                <ChevronUp className="text-muted-foreground size-4 shrink-0" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-semibold tabular-nums">
+                  {index + 1}
+                </span>
+                <span className="font-heading font-medium">
+                  {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
+                </span>
+              </div>
+            )}
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
               {we.muscle ? <Badge variant="secondary">{we.muscle}</Badge> : null}
               {we.role ? <Badge variant="ghost">{roleShort(we.role)}</Badge> : null}
               {timed ? <Badge variant="ghost">Timed</Badge> : null}
               {we.linkToNext ? (
                 <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
               ) : null}
+              {target ? <span className="text-muted-foreground">{target}</span> : null}
+              <span className="text-muted-foreground/70 tabular-nums">
+                {index + 1}/{total}
+              </span>
             </div>
-            {target ? (
-              <p className="text-muted-foreground mt-1 text-xs">
-                {target} · exercise {index + 1} of {total}
-              </p>
-            ) : (
-              <p className="text-muted-foreground mt-1 text-xs">
-                Exercise {index + 1} of {total}
-              </p>
-            )}
             {prevForExercise ? (
-              <p className="text-muted-foreground/80 mt-0.5 text-xs">
+              <p className="text-muted-foreground/80 mt-1 truncate text-xs">
                 Last time: {formatPrev(prevForExercise, unit, timed)}
               </p>
             ) : null}
@@ -820,10 +873,6 @@ function ExerciseCard({
               );
             });
           })()}
-          <p className="text-muted-foreground px-1 text-[0.7rem]">
-            Tap a set&rsquo;s type — <b>W</b> warm-up · <b>D</b> drop set · <b>F</b> to
-            failure. Warm-ups don&rsquo;t count toward your totals.
-          </p>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
