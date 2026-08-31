@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronsDown,
   ChevronUp,
+  Copy,
   Loader2,
   Play,
   Plus,
@@ -29,12 +30,14 @@ import {
   SET_TYPE_VALUES,
   type SetType,
 } from "@/lib/training";
+import { cn } from "@/lib/utils";
 import type { FullTemplate } from "@/lib/queries/templates";
 import {
   addTemplateDay,
   addTemplateExercise,
   addTemplateSet,
   deleteTemplate,
+  duplicateTemplateDay,
   removeTemplateDay,
   removeTemplateExercise,
   removeTemplateSet,
@@ -85,7 +88,8 @@ function useFlip<T extends HTMLElement>() {
   const positions = React.useRef(new Map<string, number>());
   React.useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || el.offsetHeight === 0) return; // hidden (collapsed) — skip
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const next = new Map<string, number>();
     for (const child of Array.from(el.children) as HTMLElement[]) {
       const key = child.dataset.flip;
@@ -93,7 +97,7 @@ function useFlip<T extends HTMLElement>() {
       const top = child.offsetTop;
       next.set(key, top);
       const prev = positions.current.get(key);
-      if (prev != null && prev !== top) {
+      if (!reduce && prev != null && prev !== top) {
         child.animate(
           [{ transform: `translateY(${prev - top}px)` }, { transform: "translateY(0)" }],
           { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" },
@@ -119,6 +123,29 @@ function FlipList({
     </div>
   );
 }
+
+/**
+ * Returns `isNew(id)` — true only on the first render an id appears in, so
+ * freshly-added rows can play an enter animation without everything animating
+ * on the initial page load.
+ */
+function useEnterAnimation(ids: string[]) {
+  const seen = React.useRef<Set<string> | null>(null);
+  if (seen.current === null) seen.current = new Set(ids);
+  const isNew = (id: string) => !seen.current!.has(id);
+  const markSeen = React.useCallback((id: string) => {
+    seen.current!.add(id);
+  }, []);
+  React.useEffect(() => {
+    ids.forEach((id) => seen.current!.add(id));
+  });
+  return { isNew, markSeen };
+}
+
+const enterCls =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-2 motion-safe:duration-200";
+const enterClsLight =
+  "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150";
 
 function SaveStatus({ busy, savedAt }: { busy: boolean; savedAt: number | null }) {
   if (busy) {
@@ -188,6 +215,9 @@ export function TemplateEditor({
       else next.add(dayId);
       return next;
     });
+  const { isNew: dayIsNew, markSeen: markDaySeen } = useEnterAnimation(
+    template.days.map((d) => d.id),
+  );
   // Edits made to a not-yet-saved (temp id) row are queued and replayed with the
   // real id once its create resolves.
   const queued = React.useRef(new Map<string, ((id: string) => Promise<unknown>)[]>());
@@ -282,6 +312,7 @@ export function TemplateEditor({
     startAdding(async () => {
       try {
         const real = (await addTemplateDay(template.id)) as Day;
+        markDaySeen(real.id);
         setTemplate((t) => ({
           ...t,
           days: t.days.map((d) => (d.id === tempId ? real : d)),
@@ -289,6 +320,41 @@ export function TemplateEditor({
         flushQueued(tempId, real.id);
       } catch {
         toast.error("Couldn't add a day");
+        setTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== tempId) }));
+      }
+    });
+  }
+  function duplicateDay(sourceId: string) {
+    const src = template.days.find((d) => d.id === sourceId);
+    if (!src) return;
+    const tempId = tmpId();
+    const clone: Day = {
+      ...src,
+      id: tempId,
+      name: `${src.name} (copy)`.slice(0, 40),
+      order: template.days.length,
+      exercises: src.exercises.map((e) => {
+        const eId = tmpId();
+        return {
+          ...e,
+          id: eId,
+          templateDayId: tempId,
+          sets: e.sets.map((s) => ({ ...s, id: tmpId(), templateExerciseId: eId })),
+        };
+      }),
+    };
+    setTemplate((t) => ({ ...t, days: [...t.days, clone] }));
+    startAdding(async () => {
+      try {
+        const real = (await duplicateTemplateDay(sourceId)) as Day;
+        markDaySeen(real.id);
+        setTemplate((t) => ({
+          ...t,
+          days: t.days.map((d) => (d.id === tempId ? real : d)),
+        }));
+        flushQueued(tempId, real.id);
+      } catch {
+        toast.error("Couldn't copy that day");
         setTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== tempId) }));
       }
     });
@@ -503,140 +569,35 @@ export function TemplateEditor({
       </div>
 
       <FlipList className="flex flex-col gap-6">
-        {template.days.map((day, di) => {
-          const isOpen = !collapsed.has(day.id);
-          return (
-            <Card key={day.id} data-flip={day.id}>
-              <CardHeader className="gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1">
-                    {template.days.length > 1 ? (
-                      <MoveButtons
-                        disabled={adding}
-                        canUp={di > 0}
-                        canDown={di < template.days.length - 1}
-                        onUp={() => moveDay(day.id, -1)}
-                        onDown={() => moveDay(day.id, 1)}
-                        label="day"
-                      />
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={isOpen ? "Collapse day" : "Expand day"}
-                      aria-expanded={isOpen}
-                      onClick={() => toggleDay(day.id)}
-                    >
-                      <ChevronDown
-                        className={
-                          "size-4 transition-transform" + (isOpen ? "" : " -rotate-90")
-                        }
-                      />
-                    </Button>
-                    {isOpen ? (
-                      <Input
-                        defaultValue={day.name}
-                        maxLength={40}
-                        className="h-8 max-w-[12rem] font-medium"
-                        onBlur={(e) => {
-                          const name = e.target.value.trim();
-                          if (name && name !== day.name) renameDay(day.id, name);
-                        }}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => toggleDay(day.id)}
-                        className="truncate text-left text-sm font-medium"
-                      >
-                        {day.name}
-                        <span className="text-muted-foreground ml-2 font-normal">
-                          {day.exercises.length}{" "}
-                          {day.exercises.length === 1 ? "exercise" : "exercises"}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={adding || day.exercises.length === 0}
-                      onClick={() =>
-                        startAdding(() => startWorkoutFromTemplateDay(day.id))
-                      }
-                    >
-                      <Play className="size-4" /> Start workout
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      disabled={template.days.length === 1}
-                      aria-label="Remove day"
-                      onClick={() => removeDay(day.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              {isOpen ? (
-                <CardContent className="flex flex-col gap-2">
-                  {day.exercises.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
-                      No exercises yet — add one below.
-                    </p>
-                  ) : (
-                    <FlipList className="flex flex-col gap-2">
-                      {day.exercises.map((te, i) => (
-                        <SlotRow
-                          key={te.id}
-                          flipKey={te.id}
-                          slot={te}
-                          nextName={slotTitle(day.exercises[i + 1])}
-                          catalog={catalog}
-                          locked={adding}
-                          canUp={i > 0}
-                          canDown={i < day.exercises.length - 1}
-                          onMoveUp={() => moveSlot(day.id, te.id, -1)}
-                          onMoveDown={() => moveSlot(day.id, te.id, 1)}
-                          onSetExercise={(id, ex) => setSlotExercise(te.id, id, ex)}
-                          onRemove={() => removeSlot(te.id)}
-                          onDefaultReps={(r) => setDefaultReps(te.id, r)}
-                          onLink={(l) => setLink(te.id, l)}
-                          onAddSet={() => addSet(te.id)}
-                          onSetType={(setId, t) => setSetType(setId, t)}
-                          onSetReps={(setId, r) => setSetReps(setId, r)}
-                          onRemoveSet={(setId) => removeSet(te.id, setId)}
-                        />
-                      ))}
-                    </FlipList>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <ExercisePickerDialog
-                      catalog={catalog}
-                      onPick={(exerciseId, ex) => addSlot(day.id, { exerciseId }, ex)}
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          <Plus className="size-4" /> Add exercise
-                        </Button>
-                      }
-                    />
-                    <AddSlotDialog
-                      onAdd={(slot) => addSlot(day.id, slot)}
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          <Plus className="size-4" /> Add slot
-                        </Button>
-                      }
-                    />
-                  </div>
-                </CardContent>
-              ) : null}
-            </Card>
-          );
-        })}
+        {template.days.map((day, di) => (
+          <DayCard
+            key={day.id}
+            day={day}
+            index={di}
+            daysCount={template.days.length}
+            isOpen={!collapsed.has(day.id)}
+            isNew={dayIsNew(day.id)}
+            catalog={catalog}
+            locked={adding}
+            onToggle={() => toggleDay(day.id)}
+            onRename={(name) => renameDay(day.id, name)}
+            onMoveUp={() => moveDay(day.id, -1)}
+            onMoveDown={() => moveDay(day.id, 1)}
+            onStartWorkout={() => startAdding(() => startWorkoutFromTemplateDay(day.id))}
+            onDuplicate={() => duplicateDay(day.id)}
+            onRemove={() => removeDay(day.id)}
+            onAddSlot={(input, ex) => addSlot(day.id, input, ex)}
+            onMoveSlot={(slotId, dir) => moveSlot(day.id, slotId, dir)}
+            onSetSlotExercise={(slotId, id, ex) => setSlotExercise(slotId, id, ex)}
+            onRemoveSlot={(slotId) => removeSlot(slotId)}
+            onDefaultReps={(slotId, r) => setDefaultReps(slotId, r)}
+            onLink={(slotId, l) => setLink(slotId, l)}
+            onAddSet={(slotId) => addSet(slotId)}
+            onSetType={(setId, t) => setSetType(setId, t)}
+            onSetReps={(setId, r) => setSetReps(setId, r)}
+            onRemoveSet={(slotId, setId) => removeSet(slotId, setId)}
+          />
+        ))}
       </FlipList>
 
       <div className="flex flex-wrap gap-2">
@@ -657,6 +618,223 @@ export function TemplateEditor({
         </Button>
       </div>
     </div>
+  );
+}
+
+type SlotInput = { exerciseId?: string; muscle?: string; role?: string };
+
+function DayCard({
+  day,
+  index,
+  daysCount,
+  isOpen,
+  isNew,
+  catalog,
+  locked,
+  onToggle,
+  onRename,
+  onMoveUp,
+  onMoveDown,
+  onStartWorkout,
+  onDuplicate,
+  onRemove,
+  onAddSlot,
+  onMoveSlot,
+  onSetSlotExercise,
+  onRemoveSlot,
+  onDefaultReps,
+  onLink,
+  onAddSet,
+  onSetType,
+  onSetReps,
+  onRemoveSet,
+}: {
+  day: Day;
+  index: number;
+  daysCount: number;
+  isOpen: boolean;
+  isNew: boolean;
+  catalog: PickerExercise[];
+  locked: boolean;
+  onToggle: () => void;
+  onRename: (name: string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onStartWorkout: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+  onAddSlot: (input: SlotInput, exercise?: PickerExercise) => void;
+  onMoveSlot: (slotId: string, dir: -1 | 1) => void;
+  onSetSlotExercise: (
+    slotId: string,
+    exerciseId: string | null,
+    exercise?: PickerExercise,
+  ) => void;
+  onRemoveSlot: (slotId: string) => void;
+  onDefaultReps: (slotId: string, targetReps: string | null) => void;
+  onLink: (slotId: string, link: ExerciseLink | null) => void;
+  onAddSet: (slotId: string) => void;
+  onSetType: (setId: string, type: SetType) => void;
+  onSetReps: (setId: string, targetReps: string | null) => void;
+  onRemoveSet: (slotId: string, setId: string) => void;
+}) {
+  const { isNew: slotIsNew } = useEnterAnimation(day.exercises.map((e) => e.id));
+
+  return (
+    <Card
+      data-flip={day.id}
+      className={cn(
+        "gap-0 py-4 transition-[padding] duration-200 motion-reduce:transition-none",
+        !isOpen && "pb-0",
+        isNew && enterCls,
+      )}
+    >
+      <CardHeader className="gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1">
+            {daysCount > 1 ? (
+              <MoveButtons
+                disabled={locked}
+                canUp={index > 0}
+                canDown={index < daysCount - 1}
+                onUp={onMoveUp}
+                onDown={onMoveDown}
+                label="day"
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={isOpen ? "Collapse day" : "Expand day"}
+              aria-expanded={isOpen}
+              onClick={onToggle}
+            >
+              <ChevronDown
+                className={cn(
+                  "size-4 transition-transform duration-200",
+                  !isOpen && "-rotate-90",
+                )}
+              />
+            </Button>
+            {isOpen ? (
+              <Input
+                defaultValue={day.name}
+                maxLength={40}
+                className="h-8 max-w-[12rem] font-medium"
+                onBlur={(e) => {
+                  const name = e.target.value.trim();
+                  if (name && name !== day.name) onRename(name);
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={onToggle}
+                className="truncate text-left text-sm font-medium"
+              >
+                {day.name}
+                <span className="text-muted-foreground ml-2 font-normal">
+                  {day.exercises.length}{" "}
+                  {day.exercises.length === 1 ? "exercise" : "exercises"}
+                </span>
+              </button>
+            )}
+          </div>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={locked || day.exercises.length === 0}
+              onClick={onStartWorkout}
+            >
+              <Play className="size-4" /> Start workout
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              disabled={locked}
+              aria-label="Duplicate day"
+              title="Copy this day as a new day"
+              onClick={onDuplicate}
+            >
+              <Copy className="size-4" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              disabled={daysCount === 1}
+              aria-label="Remove day"
+              onClick={onRemove}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <CardContent className="flex flex-col gap-2 pt-4">
+            {day.exercises.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No exercises yet — add one below.
+              </p>
+            ) : (
+              <FlipList className="flex flex-col gap-2">
+                {day.exercises.map((te, i) => (
+                  <SlotRow
+                    key={te.id}
+                    flipKey={te.id}
+                    enter={slotIsNew(te.id)}
+                    slot={te}
+                    nextName={slotTitle(day.exercises[i + 1])}
+                    catalog={catalog}
+                    locked={locked}
+                    canUp={i > 0}
+                    canDown={i < day.exercises.length - 1}
+                    onMoveUp={() => onMoveSlot(te.id, -1)}
+                    onMoveDown={() => onMoveSlot(te.id, 1)}
+                    onSetExercise={(id, ex) => onSetSlotExercise(te.id, id, ex)}
+                    onRemove={() => onRemoveSlot(te.id)}
+                    onDefaultReps={(r) => onDefaultReps(te.id, r)}
+                    onLink={(l) => onLink(te.id, l)}
+                    onAddSet={() => onAddSet(te.id)}
+                    onSetType={(setId, t) => onSetType(setId, t)}
+                    onSetReps={(setId, r) => onSetReps(setId, r)}
+                    onRemoveSet={(setId) => onRemoveSet(te.id, setId)}
+                  />
+                ))}
+              </FlipList>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <ExercisePickerDialog
+                catalog={catalog}
+                onPick={(exerciseId, ex) => onAddSlot({ exerciseId }, ex)}
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    <Plus className="size-4" /> Add exercise
+                  </Button>
+                }
+              />
+              <AddSlotDialog
+                onAdd={(slot) => onAddSlot(slot)}
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    <Plus className="size-4" /> Add slot
+                  </Button>
+                }
+              />
+            </div>
+          </CardContent>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -705,6 +883,7 @@ function MoveButtons({
 function SlotRow({
   slot: te,
   flipKey,
+  enter,
   nextName,
   catalog,
   locked,
@@ -723,6 +902,7 @@ function SlotRow({
 }: {
   slot: Slot;
   flipKey: string;
+  enter: boolean;
   nextName: string | null;
   catalog: PickerExercise[];
   locked: boolean;
@@ -740,13 +920,15 @@ function SlotRow({
   onRemoveSet: (setId: string) => void;
 }) {
   const link = te.linkToNext as ExerciseLink | null;
+  const { isNew: setIsNew } = useEnterAnimation(te.sets.map((s) => s.id));
   return (
     <div
       data-flip={flipKey}
-      className={
-        "flex flex-col gap-2 rounded-lg border p-2" +
-        (link ? " border-l-primary/60 border-l-4" : "")
-      }
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border p-2",
+        link && "border-l-primary/60 border-l-4",
+        enter && enterClsLight,
+      )}
     >
       <div className="flex flex-wrap items-center gap-2">
         <MoveButtons
@@ -831,6 +1013,7 @@ function SlotRow({
               key={ts.id}
               set={ts}
               number={i + 1}
+              enter={setIsNew(ts.id)}
               defaultReps={te.targetReps}
               canRemove={te.sets.length > 1 && !locked}
               onType={(t) => onSetType(ts.id, t)}
@@ -893,6 +1076,7 @@ function SlotRow({
 function TemplateSetRow({
   set: ts,
   number,
+  enter,
   defaultReps,
   canRemove,
   onType,
@@ -901,6 +1085,7 @@ function TemplateSetRow({
 }: {
   set: PlannedSet;
   number: number;
+  enter: boolean;
   defaultReps: string | null;
   canRemove: boolean;
   onType: (type: SetType) => void;
@@ -908,7 +1093,12 @@ function TemplateSetRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2">
+    <div
+      className={cn(
+        "grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2",
+        enter && enterClsLight,
+      )}
+    >
       <span className="text-muted-foreground text-xs tabular-nums">{number}</span>
       <Select value={ts.type} onValueChange={(v) => onType(v as SetType)}>
         <SelectTrigger size="sm" className="w-full" aria-label="Set type">

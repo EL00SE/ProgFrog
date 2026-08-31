@@ -190,6 +190,57 @@ export async function removeTemplateDay(dayId: string) {
   return { ok: true as const };
 }
 
+/** Clone a day (name, exercise slots, their planned sets) as a new day. */
+export async function duplicateTemplateDay(dayId: string) {
+  const userId = await getCurrentUserId();
+  const source = await prisma.templateDay.findFirst({
+    where: { id: dayId, template: { userId } },
+    include: {
+      exercises: {
+        orderBy: { order: "asc" },
+        include: {
+          exercise: true,
+          sets: { orderBy: { order: "asc" } },
+        },
+      },
+    },
+  });
+  if (!source) throw new Error("Template day not found");
+
+  const count = await prisma.templateDay.count({
+    where: { templateId: source.templateId },
+  });
+
+  const day = await prisma.templateDay.create({
+    data: {
+      templateId: source.templateId,
+      name: `${source.name} (copy)`.slice(0, 40),
+      order: count,
+      exercises: {
+        create: source.exercises.map((te) => ({
+          exerciseId: te.exerciseId,
+          muscle: te.muscle,
+          role: te.role,
+          order: te.order,
+          targetReps: te.targetReps,
+          linkToNext: te.linkToNext,
+          sets: {
+            create: te.sets.map((ts) => ({
+              order: ts.order,
+              type: ts.type,
+              targetReps: ts.targetReps,
+            })),
+          },
+        })),
+      },
+    },
+    include: { exercises: { include: { exercise: true, sets: true } } },
+  });
+
+  revalidateTemplateViews(source.templateId);
+  return day;
+}
+
 // --- exercises within a day --------------------------------------------
 
 const addExerciseSchema = z
