@@ -139,7 +139,6 @@ model Exercise {
   name       String
   equipment  Equipment     @default(BARBELL)
   muscle     String?
-  role       ExerciseRole?
   isTimed    Boolean       @default(false)
   ownerId    String?
   owner      User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)

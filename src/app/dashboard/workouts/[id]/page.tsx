@@ -53,7 +53,6 @@ export default async function WorkoutPage({
           name: e.name,
           equipment: e.equipment,
           muscle: e.muscle,
-          role: e.role,
         }))}
       />
     </div>

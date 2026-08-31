@@ -535,7 +535,6 @@ function ExerciseCard({
             catalog={catalog}
             history={prev}
             lockMuscle={we.muscle}
-            lockRole={we.role}
             title="Choose exercise"
             onPick={onAssign}
             trigger={
@@ -591,7 +590,6 @@ function ExerciseCard({
                 catalog={catalog}
                 history={prev}
                 lockMuscle={we.muscle}
-                lockRole={we.role}
                 title="Swap exercise"
                 onPick={onAssign}
                 trigger={

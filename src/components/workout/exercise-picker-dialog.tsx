@@ -4,15 +4,7 @@ import * as React from "react";
 import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  EQUIPMENT_LABELS,
-  formatDate,
-  MUSCLE_GROUPS,
-  ROLE_LABELS,
-  ROLE_ORDER,
-  ROLE_VALUES,
-  roleShort,
-} from "@/lib/training";
+import { EQUIPMENT_LABELS, formatDate, MUSCLE_GROUPS } from "@/lib/training";
 import { createCustomExercise } from "@/lib/actions/exercises";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +30,6 @@ export type PickerExercise = {
   name: string;
   equipment: string;
   muscle: string | null;
-  role: string | null;
 };
 
 export function ExercisePickerDialog({
@@ -47,7 +38,6 @@ export function ExercisePickerDialog({
   onPick,
   trigger,
   lockMuscle,
-  lockRole,
   title = "Add exercise",
 }: {
   catalog: PickerExercise[];
@@ -58,7 +48,6 @@ export function ExercisePickerDialog({
   onPick: (exerciseId: string, exercise?: PickerExercise) => void | Promise<void>;
   trigger: React.ReactNode;
   lockMuscle?: string | null;
-  lockRole?: string | null;
   title?: string;
 }) {
   const hist = history ?? {};
@@ -70,18 +59,14 @@ export function ExercisePickerDialog({
   const [pending, startTransition] = React.useTransition();
   const [newEquipment, setNewEquipment] = React.useState("BARBELL");
   const [newMuscle, setNewMuscle] = React.useState<string>(lockMuscle || "Other");
-  const [newRole, setNewRole] = React.useState<string>(lockRole || "SECONDARY");
 
-  const locked = !showAll && (lockMuscle || lockRole);
+  const locked = !showAll && !!lockMuscle;
 
   const inScope = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = catalog;
-    if (locked) {
-      list = list.filter(
-        (e) =>
-          (!lockMuscle || e.muscle === lockMuscle) && (!lockRole || e.role === lockRole),
-      );
+    if (locked && lockMuscle) {
+      list = list.filter((e) => e.muscle === lockMuscle);
     }
     if (q) {
       list = list.filter(
@@ -89,7 +74,7 @@ export function ExercisePickerDialog({
       );
     }
     return list;
-  }, [catalog, query, locked, lockMuscle, lockRole]);
+  }, [catalog, query, locked, lockMuscle]);
 
   // Exercises the user has done, most recent first — shown up top.
   const recent = React.useMemo(
@@ -115,16 +100,13 @@ export function ExercisePickerDialog({
           [
             m,
             [...items].sort((a, b) => {
-              // done exercises first (most recent), then by role, then name
+              // done exercises first (most recent), then by name
               const da = lastDone(a.id);
               const db = lastDone(b.id);
               if (da && db) return db < da ? -1 : 1;
               if (da) return -1;
               if (db) return 1;
-              return (
-                (ROLE_ORDER[a.role ?? ""] ?? 9) - (ROLE_ORDER[b.role ?? ""] ?? 9) ||
-                a.name.localeCompare(b.name)
-              );
+              return a.name.localeCompare(b.name);
             }),
           ] as const,
       );
@@ -140,7 +122,6 @@ export function ExercisePickerDialog({
     setCreating(false);
     setShowAll(false);
     setNewMuscle(lockMuscle || "Other");
-    setNewRole(lockRole || "SECONDARY");
   }
 
   function pick(id: string, exercise?: PickerExercise) {
@@ -159,7 +140,6 @@ export function ExercisePickerDialog({
         name,
         equipment: newEquipment as never,
         muscle: newMuscle,
-        role: newRole as never,
       });
       if (!res.ok) {
         toast.error(res.error);
@@ -185,13 +165,9 @@ export function ExercisePickerDialog({
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
 
-          {(lockMuscle || lockRole) && (
+          {lockMuscle && (
             <div className="flex items-center gap-2 text-sm">
-              <Badge variant="secondary">
-                {[lockMuscle, lockRole && roleShort(lockRole)]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Badge>
+              <Badge variant="secondary">{lockMuscle}</Badge>
               <button
                 type="button"
                 onClick={() => setShowAll((v) => !v)}
@@ -234,37 +210,20 @@ export function ExercisePickerDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Muscle</Label>
-                  <Select value={newMuscle} onValueChange={setNewMuscle}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MUSCLE_GROUPS.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>Role</Label>
-                  <Select value={newRole} onValueChange={setNewRole}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_VALUES.map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {ROLE_LABELS[r]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid gap-1.5">
+                <Label>Muscle</Label>
+                <Select value={newMuscle} onValueChange={setNewMuscle}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MUSCLE_GROUPS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleCreate} disabled={pending}>
@@ -363,8 +322,6 @@ function ExerciseRow({
         ) : null}
       </span>
       <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-        {e.role ? <span>{roleShort(e.role)}</span> : null}
-        <span>·</span>
         <span>{EQUIPMENT_LABELS[e.equipment]}</span>
       </span>
     </button>

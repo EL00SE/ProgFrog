@@ -13,7 +13,7 @@ export function getExerciseCatalog(userId: string) {
       isArchived: false,
       OR: [{ ownerId: null }, { ownerId: userId }],
     },
-    orderBy: [{ muscle: "asc" }, { role: "asc" }, { name: "asc" }],
+    orderBy: [{ muscle: "asc" }, { name: "asc" }],
   });
 }
 

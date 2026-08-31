@@ -120,7 +120,7 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
         orderBy: { order: "asc" },
         include: {
           exercise: {
-            select: { equipment: true, muscle: true, role: true, isTimed: true },
+            select: { equipment: true, muscle: true, isTimed: true },
           },
           sets: { orderBy: { order: "asc" } },
         },
@@ -139,7 +139,7 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
         create: day.exercises.map((te, i) => ({
           exerciseId: te.exerciseId,
           muscle: te.muscle ?? te.exercise?.muscle ?? null,
-          role: te.role ?? te.exercise?.role ?? null,
+          role: te.role,
           targetSets: te.sets.length || null,
           targetReps: te.targetReps,
           order: i,
@@ -275,7 +275,6 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
       workoutId: data.workoutId,
       exerciseId: data.exerciseId,
       muscle: exercise.muscle,
-      role: exercise.role,
       order: count,
       equipment: exercise.equipment,
       linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
@@ -335,7 +334,7 @@ export async function assignWorkoutEntryExercise(input: z.infer<typeof assignSch
 
   const current = await prisma.workoutExercise.findUnique({
     where: { id: data.workoutExerciseId },
-    select: { muscle: true, role: true },
+    select: { muscle: true },
   });
 
   const updated = await prisma.workoutExercise.update({
@@ -344,7 +343,6 @@ export async function assignWorkoutEntryExercise(input: z.infer<typeof assignSch
       exerciseId: exercise.id,
       equipment: exercise.equipment,
       muscle: current?.muscle ?? exercise.muscle,
-      role: (current?.role as ExerciseRole | null) ?? exercise.role,
     },
     include: workoutExerciseInclude,
   });

@@ -28,7 +28,6 @@ export default async function TemplatePage({
         name: e.name,
         equipment: e.equipment,
         muscle: e.muscle,
-        role: e.role,
       }))}
     />
   );

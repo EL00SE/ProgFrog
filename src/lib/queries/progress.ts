@@ -30,7 +30,7 @@ export async function getTrackedExercises(userId: string) {
     },
     select: {
       exerciseId: true,
-      exercise: { select: { id: true, name: true, muscle: true, role: true } },
+      exercise: { select: { id: true, name: true, muscle: true } },
     },
     distinct: ["exerciseId"],
     orderBy: { exercise: { name: "asc" } },

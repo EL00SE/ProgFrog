@@ -19,7 +19,6 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import {
   type Equipment,
   type ExerciseLink,
-  type ExerciseRole,
   PrismaClient,
   type SetType,
 } from "../src/generated/prisma/client";
@@ -71,21 +70,17 @@ const ALIASES: Record<string, string> = {
 };
 
 // unmatched name -> custom exercise definition
-const CUSTOM: Record<
-  string,
-  { muscle: string; equipment: Equipment; role: ExerciseRole }
-> = {
-  situps: { muscle: "Core", equipment: "BODYWEIGHT", role: "ACCESSORY" },
-  "reverse crunch": { muscle: "Core", equipment: "BODYWEIGHT", role: "ISOLATION" },
-  "cable woodchoppers": { muscle: "Core", equipment: "CABLE", role: "ACCESSORY" },
-  "upright row": { muscle: "Shoulders", equipment: "BARBELL", role: "SECONDARY" },
-  "plate press out": { muscle: "Shoulders", equipment: "OTHER", role: "ACCESSORY" },
+const CUSTOM: Record<string, { muscle: string; equipment: Equipment }> = {
+  situps: { muscle: "Core", equipment: "BODYWEIGHT" },
+  "reverse crunch": { muscle: "Core", equipment: "BODYWEIGHT" },
+  "cable woodchoppers": { muscle: "Core", equipment: "CABLE" },
+  "upright row": { muscle: "Shoulders", equipment: "BARBELL" },
+  "plate press out": { muscle: "Shoulders", equipment: "OTHER" },
   "incline bench y-raise": {
     muscle: "Traps",
     equipment: "DUMBBELL",
-    role: "ACCESSORY",
   },
-  "777 bicep curls": { muscle: "Biceps", equipment: "DUMBBELL", role: "ISOLATION" },
+  "777 bicep curls": { muscle: "Biceps", equipment: "DUMBBELL" },
 };
 
 const norm = (s: string) =>
@@ -150,7 +145,6 @@ async function main() {
     const def = CUSTOM[key] ?? {
       muscle: inferMuscle(category, rawName),
       equipment: inferEquipment(notes),
-      role: "SECONDARY" as ExerciseRole,
     };
     const created = await prisma.exercise.upsert({
       where: { ownerId_name: { ownerId: user.id, name: rawName.trim() } },
@@ -260,7 +254,6 @@ async function main() {
         return {
           exerciseId: ex.id,
           muscle: ex.muscle,
-          role: ex.role,
           equipment: ex.equipment,
           order: i,
           linkToNext,

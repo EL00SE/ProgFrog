@@ -264,16 +264,15 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
   const templateId = await assertOwnDay(userId, data.dayId);
 
   let muscle = data.muscle ?? null;
-  let role = (data.role ?? null) as ExerciseRole | null;
+  const role = (data.role ?? null) as ExerciseRole | null;
 
   if (data.exerciseId) {
     const exercise = await prisma.exercise.findFirst({
       where: { id: data.exerciseId, OR: [{ ownerId: null }, { ownerId: userId }] },
-      select: { muscle: true, role: true },
+      select: { muscle: true },
     });
     if (!exercise) throw new Error("Exercise not available");
     muscle = muscle ?? exercise.muscle;
-    role = role ?? exercise.role;
   }
 
   const count = await prisma.templateExercise.count({
@@ -318,21 +317,20 @@ export async function updateTemplateExercise(
   const data = updateExerciseSchema.parse(input);
   const templateId = await assertOwnTemplateExercise(userId, data.id);
 
-  // Setting a specific exercise adopts its muscle/role when the slot has none.
+  // Setting a specific exercise adopts its muscle when the slot has none.
   let muscle = data.muscle;
-  let role = data.role as ExerciseRole | null | undefined;
+  const role = data.role as ExerciseRole | null | undefined;
   if (data.exerciseId) {
     const exercise = await prisma.exercise.findFirst({
       where: { id: data.exerciseId, OR: [{ ownerId: null }, { ownerId: userId }] },
-      select: { muscle: true, role: true },
+      select: { muscle: true },
     });
     if (!exercise) throw new Error("Exercise not available");
     const current = await prisma.templateExercise.findUnique({
       where: { id: data.id },
-      select: { muscle: true, role: true },
+      select: { muscle: true },
     });
     muscle = muscle ?? current?.muscle ?? exercise.muscle;
-    role = role ?? (current?.role as ExerciseRole | null) ?? exercise.role;
   }
 
   await prisma.templateExercise.update({

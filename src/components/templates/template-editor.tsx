@@ -404,7 +404,7 @@ export function TemplateEditor({
       exerciseId: input.exerciseId ?? null,
       exercise: picked ? (picked as unknown as Slot["exercise"]) : null,
       muscle: (input.muscle ?? picked?.muscle ?? null) as Slot["muscle"],
-      role: (input.role ?? picked?.role ?? null) as Slot["role"],
+      role: (input.role ?? null) as Slot["role"],
       order: day?.exercises.length ?? 0,
       targetReps: "8-12",
       linkToNext: null,
@@ -454,11 +454,10 @@ export function TemplateEditor({
             name: picked.name,
             equipment: picked.equipment,
             muscle: picked.muscle,
-            role: picked.role,
           } as Slot["exercise"])
         : null,
       muscle: s.muscle ?? picked?.muscle ?? null,
-      role: (s.role ?? picked?.role ?? null) as Slot["role"],
+      role: s.role as Slot["role"],
     }));
     persistFor(slotId, (id) => updateTemplateExercise({ id, exerciseId }));
   }
@@ -955,7 +954,6 @@ function SlotRow({
         <ExercisePickerDialog
           catalog={catalog}
           lockMuscle={te.muscle}
-          lockRole={te.role}
           title={te.exercise ? "Change exercise" : "Choose exercise"}
           onPick={(exerciseId, ex) => onSetExercise(exerciseId, ex)}
           trigger={

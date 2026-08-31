@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { type ExerciseRole, ROLE_VALUES } from "@/lib/training";
 
 const EQUIPMENT = [
   "BARBELL",
@@ -22,7 +21,6 @@ const exerciseSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
   equipment: z.enum(EQUIPMENT),
   muscle: z.string().trim().max(40).optional(),
-  role: z.enum(ROLE_VALUES as [string, ...string[]]).nullish(),
 });
 
 function revalidateExerciseViews() {
@@ -41,7 +39,6 @@ export type ExerciseActionResult =
         name: string;
         equipment: string;
         muscle: string | null;
-        role: string | null;
       };
     }
   | { ok: false; error: string };
@@ -51,7 +48,6 @@ const exerciseSelect = {
   name: true,
   equipment: true,
   muscle: true,
-  role: true,
 } as const;
 
 /** Create a private custom exercise for the signed-in user. */
@@ -63,7 +59,7 @@ export async function createCustomExercise(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { name, equipment, muscle, role } = parsed.data;
+  const { name, equipment, muscle } = parsed.data;
 
   const clash = await prisma.exercise.findFirst({
     where: {
@@ -81,7 +77,6 @@ export async function createCustomExercise(
       name,
       equipment,
       muscle: muscle || null,
-      role: (role ?? null) as ExerciseRole | null,
       ownerId: userId,
     },
     select: exerciseSelect,
@@ -101,7 +96,7 @@ export async function updateCustomExercise(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { id, name, equipment, muscle, role } = parsed.data;
+  const { id, name, equipment, muscle } = parsed.data;
 
   const owned = await prisma.exercise.findFirst({
     where: { id, ownerId: userId },
@@ -115,7 +110,6 @@ export async function updateCustomExercise(
       name,
       equipment,
       muscle: muscle || null,
-      role: (role ?? null) as ExerciseRole | null,
     },
     select: exerciseSelect,
   });

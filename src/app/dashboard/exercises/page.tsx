@@ -29,14 +29,12 @@ export default async function ExercisesPage() {
           name: e.name,
           equipment: e.equipment,
           muscle: e.muscle,
-          role: e.role,
         }))}
         custom={custom.map((e) => ({
           id: e.id,
           name: e.name,
           equipment: e.equipment,
           muscle: e.muscle,
-          role: e.role,
           isArchived: e.isArchived,
         }))}
       />
