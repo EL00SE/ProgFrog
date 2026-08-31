@@ -24,6 +24,16 @@ function revalidateTemplateViews(templateId?: string) {
   if (templateId) revalidatePath(`/dashboard/templates/${templateId}`);
 }
 
+/**
+ * For edits made inside the editor: the editor keeps its own optimistic state
+ * and ignores prop updates, so re-fetching the `[id]` route is wasted work that
+ * only drags out the "saving…" indicator. Just keep the list (day/slot counts)
+ * fresh for when the user navigates back to it.
+ */
+function revalidateTemplateList() {
+  revalidatePath("/dashboard/templates");
+}
+
 async function assertOwnTemplate(userId: string, templateId: string) {
   const t = await prisma.template.findFirst({
     where: { id: templateId, userId },
@@ -113,7 +123,7 @@ export async function updateTemplate(input: z.infer<typeof updateSchema>) {
       description: data.description === undefined ? undefined : data.description,
     },
   });
-  revalidateTemplateViews(data.templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
@@ -135,7 +145,7 @@ export async function addTemplateDay(templateId: string) {
     data: { templateId, name: `Day ${count + 1}`, order: count },
     include: { exercises: { include: { exercise: true, sets: true } } },
   });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return day;
 }
 
@@ -164,7 +174,7 @@ export async function reorderTemplateDays(input: z.infer<typeof reorderDaysSchem
       prisma.templateDay.update({ where: { id }, data: { order: i } }),
     ),
   );
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
@@ -176,17 +186,17 @@ const renameDaySchema = z.object({
 export async function renameTemplateDay(input: z.infer<typeof renameDaySchema>) {
   const userId = await getCurrentUserId();
   const { dayId, name } = renameDaySchema.parse(input);
-  const templateId = await assertOwnDay(userId, dayId);
+  await assertOwnDay(userId, dayId);
   await prisma.templateDay.update({ where: { id: dayId }, data: { name } });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
 export async function removeTemplateDay(dayId: string) {
   const userId = await getCurrentUserId();
-  const templateId = await assertOwnDay(userId, dayId);
+  await assertOwnDay(userId, dayId);
   await prisma.templateDay.delete({ where: { id: dayId } });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
@@ -237,7 +247,7 @@ export async function duplicateTemplateDay(dayId: string) {
     include: { exercises: { include: { exercise: true, sets: true } } },
   });
 
-  revalidateTemplateViews(source.templateId);
+  revalidateTemplateList();
   return day;
 }
 
@@ -261,7 +271,7 @@ const addExerciseSchema = z
 export async function addTemplateExercise(input: z.infer<typeof addExerciseSchema>) {
   const userId = await getCurrentUserId();
   const data = addExerciseSchema.parse(input);
-  const templateId = await assertOwnDay(userId, data.dayId);
+  await assertOwnDay(userId, data.dayId);
 
   let muscle = data.muscle ?? null;
   const role = (data.role ?? null) as ExerciseRole | null;
@@ -297,7 +307,7 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
     },
     include: { exercise: true, sets: { orderBy: { order: "asc" } } },
   });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return created;
 }
 
@@ -315,7 +325,7 @@ export async function updateTemplateExercise(
 ) {
   const userId = await getCurrentUserId();
   const data = updateExerciseSchema.parse(input);
-  const templateId = await assertOwnTemplateExercise(userId, data.id);
+  await assertOwnTemplateExercise(userId, data.id);
 
   // Setting a specific exercise adopts its muscle when the slot has none.
   let muscle = data.muscle;
@@ -346,15 +356,15 @@ export async function updateTemplateExercise(
           : (data.linkToNext as ExerciseLink | null),
     },
   });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
 export async function removeTemplateExercise(id: string) {
   const userId = await getCurrentUserId();
-  const templateId = await assertOwnTemplateExercise(userId, id);
+  await assertOwnTemplateExercise(userId, id);
   await prisma.templateExercise.delete({ where: { id } });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
@@ -369,7 +379,7 @@ export async function reorderTemplateExercises(
 ) {
   const userId = await getCurrentUserId();
   const { dayId, exerciseIds } = reorderExercisesSchema.parse(input);
-  const templateId = await assertOwnDay(userId, dayId);
+  await assertOwnDay(userId, dayId);
 
   const owned = new Set(
     (
@@ -385,7 +395,7 @@ export async function reorderTemplateExercises(
       prisma.templateExercise.update({ where: { id }, data: { order: i } }),
     ),
   );
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
@@ -394,7 +404,7 @@ export async function reorderTemplateExercises(
 /** Append a planned set to a template slot, copying the last set's type. */
 export async function addTemplateSet(templateExerciseId: string) {
   const userId = await getCurrentUserId();
-  const templateId = await assertOwnTemplateExercise(userId, templateExerciseId);
+  await assertOwnTemplateExercise(userId, templateExerciseId);
   const last = await prisma.templateSet.findFirst({
     where: { templateExerciseId },
     orderBy: { order: "desc" },
@@ -406,7 +416,7 @@ export async function addTemplateSet(templateExerciseId: string) {
       type: last?.type ?? "NORMAL",
     },
   });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return created;
 }
 
@@ -419,7 +429,7 @@ const updateSetSchema = z.object({
 export async function updateTemplateSet(input: z.infer<typeof updateSetSchema>) {
   const userId = await getCurrentUserId();
   const data = updateSetSchema.parse(input);
-  const { templateId } = await assertOwnTemplateSet(userId, data.id);
+  await assertOwnTemplateSet(userId, data.id);
   await prisma.templateSet.update({
     where: { id: data.id },
     data: {
@@ -427,14 +437,14 @@ export async function updateTemplateSet(input: z.infer<typeof updateSetSchema>) 
       targetReps: data.targetReps === undefined ? undefined : data.targetReps,
     },
   });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }
 
 export async function removeTemplateSet(id: string) {
   const userId = await getCurrentUserId();
-  const { templateId } = await assertOwnTemplateSet(userId, id);
+  await assertOwnTemplateSet(userId, id);
   await prisma.templateSet.delete({ where: { id } });
-  revalidateTemplateViews(templateId);
+  revalidateTemplateList();
   return { ok: true as const };
 }

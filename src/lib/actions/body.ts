@@ -1,17 +1,13 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { convertWeight } from "@/lib/training";
 
-function revalidateBodyViews() {
-  revalidatePath("/dashboard");
-  revalidatePath("/dashboard/progress");
-  revalidatePath("/dashboard/settings");
-}
+// No revalidatePath here: body weight/profile is only shown in <BodyView> on the
+// progress page, which keeps its own optimistic state and reconciles on error.
 
 const profileSchema = z.object({
   heightCm: z.number().min(50).max(280).nullable().optional(),
@@ -40,7 +36,7 @@ export async function updateBodyProfile(input: z.infer<typeof profileSchema>) {
       birthday: birthday === undefined ? undefined : birthday,
     },
   });
-  revalidateBodyViews();
+
   return { ok: true as const };
 }
 
@@ -65,7 +61,7 @@ export async function logWeight(input: z.infer<typeof logSchema>) {
       notes: data.notes || null,
     },
   });
-  revalidateBodyViews();
+
   return entry;
 }
 
@@ -77,7 +73,7 @@ export async function deleteBodyEntry(id: string) {
   });
   if (!entry) throw new Error("Not found");
   await prisma.bodyEntry.delete({ where: { id } });
-  revalidateBodyViews();
+
   return { ok: true as const };
 }
 

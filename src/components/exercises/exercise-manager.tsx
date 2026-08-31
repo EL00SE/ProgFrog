@@ -46,12 +46,49 @@ function byMuscleThenName(a: GlobalExercise, b: GlobalExercise) {
 
 export function ExerciseManager({
   globals,
-  custom,
+  custom: customProp,
 }: {
   globals: GlobalExercise[];
   custom: CustomExercise[];
 }) {
+  const router = useRouter();
   const [query, setQuery] = React.useState("");
+
+  // Local mirror of the custom list so add / edit / archive land instantly. A
+  // fresh server list (from the action's revalidate) replaces it on the next render.
+  const [custom, setCustom] = React.useState(customProp);
+  const [syncedProp, setSyncedProp] = React.useState(customProp);
+  if (customProp !== syncedProp) {
+    setCustom(customProp);
+    setSyncedProp(customProp);
+  }
+
+  const reconcileOnError = React.useCallback(
+    (e: unknown) => {
+      console.error(e);
+      toast.error("Couldn't save that — reverting");
+      router.refresh();
+    },
+    [router],
+  );
+
+  const upsert = React.useCallback((row: CustomExercise) => {
+    setCustom((list) => {
+      const i = list.findIndex((e) => e.id === row.id);
+      if (i === -1) return [...list, row];
+      const next = [...list];
+      next[i] = row;
+      return next;
+    });
+  }, []);
+
+  const toggleArchived = React.useCallback(
+    (id: string, isArchived: boolean) => {
+      setCustom((list) => list.map((e) => (e.id === id ? { ...e, isArchived } : e)));
+      setExerciseArchived(id, isArchived).catch(reconcileOnError);
+    },
+    [reconcileOnError],
+  );
 
   const q = query.trim().toLowerCase();
   const match = (e: GlobalExercise) =>
@@ -72,6 +109,8 @@ export function ExerciseManager({
           className="w-44"
         />
         <ExerciseFormDialog
+          onSaved={upsert}
+          onError={reconcileOnError}
           trigger={
             <Button size="sm">
               <Plus className="size-4" /> Add exercise
@@ -91,7 +130,14 @@ export function ExerciseManager({
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {filteredCustom.map((e) => (
-              <ExerciseRow key={e.id} exercise={e} editable />
+              <ExerciseRow
+                key={e.id}
+                exercise={e}
+                editable
+                onSaved={upsert}
+                onError={reconcileOnError}
+                onToggleArchived={toggleArchived}
+              />
             ))}
           </div>
         )}
@@ -114,12 +160,16 @@ export function ExerciseManager({
 function ExerciseRow({
   exercise,
   editable = false,
+  onSaved,
+  onError,
+  onToggleArchived,
 }: {
   exercise: CustomExercise | GlobalExercise;
   editable?: boolean;
+  onSaved?: (row: CustomExercise) => void;
+  onError?: (e: unknown) => void;
+  onToggleArchived?: (id: string, isArchived: boolean) => void;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
   const isArchived = "isArchived" in exercise && exercise.isArchived;
 
   return (
@@ -143,6 +193,8 @@ function ExerciseRow({
           <div className="flex shrink-0 gap-1">
             <ExerciseFormDialog
               exercise={exercise as CustomExercise}
+              onSaved={onSaved}
+              onError={onError}
               trigger={
                 <Button variant="ghost" size="icon-sm" aria-label="Edit">
                   <Pencil className="size-4" />
@@ -152,14 +204,8 @@ function ExerciseRow({
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={pending}
               aria-label={isArchived ? "Restore" : "Archive"}
-              onClick={() =>
-                startTransition(async () => {
-                  await setExerciseArchived(exercise.id, !isArchived);
-                  router.refresh();
-                })
-              }
+              onClick={() => onToggleArchived?.(exercise.id, !isArchived)}
             >
               {isArchived ? (
                 <ArchiveRestore className="size-4" />
@@ -177,24 +223,25 @@ function ExerciseRow({
 function ExerciseFormDialog({
   exercise,
   trigger,
+  onSaved,
+  onError,
 }: {
   exercise?: CustomExercise;
   trigger: React.ReactNode;
+  onSaved?: (row: CustomExercise) => void;
+  onError?: (e: unknown) => void;
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
+  const [saving, setSaving] = React.useState(false);
   const [name, setName] = React.useState(exercise?.name ?? "");
   const [equipment, setEquipment] = React.useState(exercise?.equipment ?? "BARBELL");
   const [muscle, setMuscle] = React.useState(exercise?.muscle ?? "Other");
 
-  function submit() {
-    startTransition(async () => {
-      const payload = {
-        name,
-        equipment: equipment as never,
-        muscle,
-      };
+  async function submit() {
+    const payload = { name: name.trim(), equipment: equipment as never, muscle };
+    if (!payload.name) return;
+    setSaving(true);
+    try {
       const res = exercise
         ? await updateCustomExercise({ id: exercise.id, ...payload })
         : await createCustomExercise(payload);
@@ -202,11 +249,15 @@ function ExerciseFormDialog({
         toast.error(res.error);
         return;
       }
+      onSaved?.({ ...res.exercise, isArchived: exercise?.isArchived ?? false });
       toast.success(exercise ? "Exercise updated" : "Exercise added");
       setOpen(false);
       if (!exercise) setName("");
-      router.refresh();
-    });
+    } catch (e) {
+      onError?.(e);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -259,7 +310,7 @@ function ExerciseFormDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={pending || !name.trim()}>
+          <Button onClick={submit} disabled={saving || !name.trim()}>
             {exercise ? "Save" : "Add exercise"}
           </Button>
         </DialogFooter>
