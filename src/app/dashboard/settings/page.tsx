@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { InstallButton } from "@/components/pwa/install-button";
 import { WeightUnitForm } from "@/components/settings/weight-unit-form";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -31,6 +32,19 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <WeightUnitForm current={user.weightUnit} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Install the app</CardTitle>
+          <CardDescription>
+            Add ProgFrog to your home screen or dock — it opens full-screen, with its own
+            icon, and pages you&rsquo;ve visited work offline.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InstallButton />
         </CardContent>
       </Card>
 
