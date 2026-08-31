@@ -2,11 +2,37 @@ import type { NextAuthConfig } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 
+import { name as pkgName } from "../package.json";
+
 /**
  * Edge-safe Auth.js config: no database adapter, no Node-only imports.
  * Shared by the full server instance (`auth.ts`) and the proxy (`proxy.ts`).
  */
+
+// The session cookie name is namespaced per project: localhost apps share one
+// cookie jar across ports, so a shared name makes a sibling project's stale
+// token fail to decrypt ("no matching decryption secret" JWTSessionError).
+// Defaults to the package.json name (which you rename per project anyway);
+// AUTH_COOKIE_PREFIX overrides it if you need an explicit value.
+const cookiePrefix =
+  process.env.AUTH_COOKIE_PREFIX?.trim() ||
+  pkgName.replace(/[^a-z0-9_-]/gi, "") ||
+  "authjs";
+const useSecureCookies =
+  process.env.AUTH_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production";
+
 export default {
+  cookies: {
+    sessionToken: {
+      name: `${useSecureCookies ? "__Secure-" : ""}${cookiePrefix}.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+  },
   // `allowDangerousEmailAccountLinking` lets one person use GitHub *or* Google
   // for the same email and land on a single account. It's safe here because both
   // providers verify email ownership; only enable it for providers you trust.

@@ -25,6 +25,19 @@ export const getCurrentUser = cache(async () => {
   const session = await requireSession();
   return prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, image: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      weightUnit: true,
+      createdAt: true,
+    },
   });
+});
+
+/** The signed-in user's id (or redirects to sign-in). */
+export const getCurrentUserId = cache(async () => {
+  const session = await requireSession();
+  return session.user.id;
 });

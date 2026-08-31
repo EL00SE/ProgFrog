@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Prisma's generated client ships files that shouldn't be bundled.
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg"],
+  // Hide the on-screen dev indicator (dev-only; never rendered in production).
+  devIndicators: false,
 };
 
 export default nextConfig;

@@ -18,10 +18,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "app-base",
-    template: "%s · app-base",
+    default: "ProgFrog welcomes you back to your journey",
+    template: "%s · ProgFrog",
   },
-  description: "A batteries-included Next.js starter.",
+  description: "Track your workouts, sets, and progress.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

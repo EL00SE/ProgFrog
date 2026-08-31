@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FrogMark } from "@/components/logo";
 import { SignInButtons } from "./sign-in-buttons";
 
 export const metadata: Metadata = {
@@ -18,9 +19,12 @@ export default function SignInPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Sign in to app-base</CardTitle>
-          <CardDescription>Use a provider below to continue.</CardDescription>
+        <CardHeader className="justify-items-center text-center">
+          <FrogMark className="mb-1 size-10" />
+          <CardTitle className="text-xl">Sign in to ProgFrog</CardTitle>
+          <CardDescription>
+            Continue with a provider to start logging your workouts.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <SignInButtons />

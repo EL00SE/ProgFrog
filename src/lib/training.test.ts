@@ -1,0 +1,160 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  best1RM,
+  convertWeight,
+  epley1RM,
+  formatDuration,
+  parseTargetSeconds,
+  personalRecords,
+  roleLabel,
+  startOfWeek,
+  topSet,
+  weeklyStreak,
+  workoutVolume,
+} from "./training";
+
+describe("epley1RM", () => {
+  it("returns the weight itself for a single rep", () => {
+    expect(epley1RM(100, 1)).toBe(100);
+  });
+
+  it("adds ~3.3% per rep (Epley)", () => {
+    expect(epley1RM(100, 10)).toBeCloseTo(133.33, 1);
+  });
+
+  it("is 0 without load or reps", () => {
+    expect(epley1RM(0, 5)).toBe(0);
+    expect(epley1RM(100, 0)).toBe(0);
+  });
+});
+
+describe("convertWeight", () => {
+  it("round-trips kg -> lb -> kg", () => {
+    const lb = convertWeight(100, "KG", "LB");
+    expect(lb).toBeCloseTo(220.46, 1);
+    expect(convertWeight(lb, "LB", "KG")).toBeCloseTo(100, 5);
+  });
+
+  it("is a no-op for the same unit", () => {
+    expect(convertWeight(42, "KG", "KG")).toBe(42);
+  });
+});
+
+describe("workoutVolume", () => {
+  it("sums weight x reps and ignores warm-ups", () => {
+    const sets = [
+      { weight: 100, reps: 5 },
+      { weight: 60, reps: 10, isWarmup: true },
+      { weight: 100, reps: 5 },
+    ];
+    expect(workoutVolume(sets)).toBe(1000);
+  });
+});
+
+describe("topSet / best1RM", () => {
+  const sets = [
+    { weight: 80, reps: 8 },
+    { weight: 100, reps: 3 },
+    { weight: 100, reps: 5 },
+    { weight: 120, reps: 10, isWarmup: true },
+  ];
+
+  it("picks the heaviest working set, ties broken by reps", () => {
+    expect(topSet(sets)).toEqual({ weight: 100, reps: 5 });
+  });
+
+  it("takes the best estimated 1RM across working sets", () => {
+    // 100x5 -> 116.7 beats 80x8 -> 101.3 and 100x3 -> 110
+    expect(best1RM(sets)).toBeCloseTo(116.67, 1);
+  });
+});
+
+describe("personalRecords", () => {
+  it("tracks all-time bests and the date of the best 1RM", () => {
+    const prs = personalRecords([
+      { date: "2026-01-01", best1RM: 100, topSetWeight: 90, volume: 2000 },
+      { date: "2026-01-08", best1RM: 110, topSetWeight: 100, volume: 1800 },
+      { date: "2026-01-15", best1RM: 108, topSetWeight: 105, volume: 2400 },
+    ]);
+    expect(prs).toEqual({
+      best1RM: 110,
+      maxWeight: 105,
+      bestVolume: 2400,
+      best1RMDate: "2026-01-08",
+    });
+  });
+});
+
+describe("startOfWeek", () => {
+  it("returns the Monday of the week at local midnight", () => {
+    // 2026-08-31 is a Monday
+    const mon = startOfWeek(new Date("2026-09-02T15:30:00"));
+    expect(mon.getFullYear()).toBe(2026);
+    expect(mon.getMonth()).toBe(7); // August
+    expect(mon.getDate()).toBe(31);
+    expect(mon.getHours()).toBe(0);
+  });
+
+  it("treats Sunday as the end of the same week", () => {
+    const sun = startOfWeek(new Date("2026-09-06T12:00:00")); // Sunday
+    expect(sun.getDate()).toBe(31); // still the 31 Aug Monday
+  });
+});
+
+describe("weeklyStreak", () => {
+  const now = new Date("2026-09-02T12:00:00"); // Wednesday
+
+  it("is 0 with no workouts", () => {
+    expect(weeklyStreak([], now)).toBe(0);
+  });
+
+  it("counts consecutive weeks back from this week", () => {
+    const dates = [
+      new Date("2026-09-01"), // this week
+      new Date("2026-08-26"), // last week
+      new Date("2026-08-18"), // two weeks ago
+    ];
+    expect(weeklyStreak(dates, now)).toBe(3);
+  });
+
+  it("still counts when this week is missing but last week is present", () => {
+    expect(weeklyStreak([new Date("2026-08-26")], now)).toBe(1);
+  });
+
+  it("breaks on a two-week gap", () => {
+    const dates = [new Date("2026-08-26"), new Date("2026-08-05")];
+    expect(weeklyStreak(dates, now)).toBe(1);
+  });
+});
+
+describe("formatDuration", () => {
+  it("renders m:ss", () => {
+    expect(formatDuration(0)).toBe("0:00");
+    expect(formatDuration(9)).toBe("0:09");
+    expect(formatDuration(90)).toBe("1:30");
+    expect(formatDuration(605)).toBe("10:05");
+  });
+});
+
+describe("parseTargetSeconds", () => {
+  it("reads plain, suffixed, and clock formats", () => {
+    expect(parseTargetSeconds("45")).toBe(45);
+    expect(parseTargetSeconds("60s")).toBe(60);
+    expect(parseTargetSeconds("1:30")).toBe(90);
+    expect(parseTargetSeconds(null)).toBe(60);
+    expect(parseTargetSeconds("8-12")).toBe(8);
+  });
+});
+
+describe("roleLabel", () => {
+  it("combines muscle and role", () => {
+    expect(roleLabel("Chest", "MAIN")).toBe("Chest · Main lift");
+  });
+
+  it("falls back to whichever part is known", () => {
+    expect(roleLabel("Back", null)).toBe("Back");
+    expect(roleLabel(null, "ISOLATION")).toBe("Isolation");
+    expect(roleLabel(null, null)).toBe("Exercise");
+  });
+});
