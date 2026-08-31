@@ -46,10 +46,9 @@ export function InstallButton() {
 
   return (
     <p className="text-muted-foreground text-sm text-pretty">
-      Your browser hasn&rsquo;t offered an install button yet — try again after using the
-      app for a bit, or open the browser menu and look for <b>Install ProgFrog</b> /{" "}
-      <b>Add to Home screen</b>. In Opera and Chrome on desktop it also shows as an icon
-      at the right end of the address bar.
+      Look for the <b>install icon</b> at the right end of the address bar (Chrome and
+      Edge), or open the browser menu and choose <b>Install ProgFrog</b>. The option can
+      take a few seconds to appear after the page loads.
     </p>
   );
 }
