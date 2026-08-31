@@ -385,6 +385,7 @@ export function WorkoutLogger({
 
   const pending = busy;
 
+  const groups = React.useMemo(() => groupLinkedExercises(exercises), [exercises]);
   const working = exercises.flatMap((e) => e.sets.filter(isWorkingSet));
   const totalSets = working.length;
   const totalVolume = working.reduce((x, s) => x + s.reps * s.weight, 0);
@@ -445,7 +446,7 @@ export function WorkoutLogger({
         </p>
       )}
 
-      {groupLinkedExercises(exercises).map((group, gi) => {
+      {groups.map((group, gi) => {
         const cardProps = (we: WE) => ({
           we,
           index: exercises.findIndex((e) => e.id === we.id),
@@ -927,7 +928,24 @@ function SetTypeField({
   );
 }
 
-function SetRow({
+/**
+ * Memoised so editing one set doesn't reconcile the other ~50 rows (each of
+ * which mounts a radix Select + two WheelFields). The callbacks change identity
+ * every parent render but only ever call functional-updater setState / the
+ * module-level outbox, so ignoring their identity in the comparison is safe.
+ */
+const SetRow = React.memo(SetRowImpl, (a, b) => {
+  return (
+    a.set === b.set &&
+    a.number === b.number &&
+    a.unit === b.unit &&
+    a.defaultReps === b.defaultReps &&
+    a.timed === b.timed &&
+    a.disabled === b.disabled
+  );
+});
+
+function SetRowImpl({
   set,
   number,
   unit,
