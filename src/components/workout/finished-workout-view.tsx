@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ChevronsDown, Link2, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronsDown, Clock, Link2, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   EQUIPMENT_LABELS,
@@ -19,12 +20,134 @@ import {
   topSet,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
-import { deleteWorkout, reopenWorkout } from "@/lib/actions/workouts";
+import { deleteWorkout, reopenWorkout, updateWorkout } from "@/lib/actions/workouts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { BackLink } from "@/components/back-link";
+
+/** Minutes → "1h 24m" / "48m". */
+function formatDuration(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+}
+
+/** A Date → the `YYYY-MM-DDTHH:mm` a <input type="datetime-local"> expects. */
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+function SessionTimes({ workout }: { workout: FullWorkout }) {
+  const [editing, setEditing] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+  const started = new Date(workout.startedAt);
+  const ended = workout.endedAt ? new Date(workout.endedAt) : null;
+  const [startVal, setStartVal] = React.useState(toLocalInput(started));
+  const [endVal, setEndVal] = React.useState(ended ? toLocalInput(ended) : "");
+
+  const timeFmt: Intl.DateTimeFormatOptions = {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  };
+
+  function save() {
+    const startDate = new Date(startVal);
+    const endDate = endVal ? new Date(endVal) : null;
+    if (Number.isNaN(startDate.getTime())) return;
+    if (endDate && endDate < startDate) {
+      toast.error("The session can't end before it starts");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await updateWorkout({
+          workoutId: workout.id,
+          startedAt: startDate.toISOString(),
+          endedAt: endDate ? endDate.toISOString() : null,
+        });
+        setEditing(false);
+      } catch {
+        toast.error("Couldn't save the times");
+      }
+    });
+  }
+
+  return (
+    <div className="bg-muted/40 flex flex-col gap-2 rounded-lg p-3 text-sm">
+      {editing ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">Started</span>
+            <Input
+              type="datetime-local"
+              value={startVal}
+              onChange={(e) => setStartVal(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs">Ended</span>
+            <Input
+              type="datetime-local"
+              value={endVal}
+              onChange={(e) => setEndVal(e.target.value)}
+            />
+          </label>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={save} disabled={pending}>
+              <Check className="size-4" /> Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => {
+                setStartVal(toLocalInput(started));
+                setEndVal(ended ? toLocalInput(ended) : "");
+                setEditing(false);
+              }}
+            >
+              <X className="size-4" /> Cancel
+            </Button>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock className="text-muted-foreground size-4 shrink-0" />
+            <span>
+              {started.toLocaleString("en-US", timeFmt)}
+              {ended ? (
+                <>
+                  {" → "}
+                  {ended.toLocaleString("en-US", timeFmt)}
+                  <span className="text-muted-foreground">
+                    {"  ·  "}
+                    {formatDuration((ended.getTime() - started.getTime()) / 60000)}
+                  </span>
+                </>
+              ) : null}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Edit session times"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="size-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type WE = FullWorkout["exercises"][number];
 
@@ -78,6 +201,8 @@ export function FinishedWorkoutView({
           </Button>
         </div>
       </div>
+
+      <SessionTimes workout={workout} />
 
       {workout.notes ? (
         <p className="text-muted-foreground bg-muted/40 rounded-lg p-3 text-sm">

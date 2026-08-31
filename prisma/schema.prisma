@@ -161,6 +161,10 @@ model Workout {
   name          String?
   notes         String?
   unit          WeightUnit   @default(KG)
+  /// When the session actually began / ended in the gym. Editable by the user;
+  /// `startedAt` defaults to creation time, `endedAt` is stamped on finish.
+  startedAt     DateTime     @default(now())
+  endedAt       DateTime?
   finishedAt    DateTime?
   templateDayId String?
   templateDay   TemplateDay? @relation(fields: [templateDayId], references: [id], onDelete: SetNull)

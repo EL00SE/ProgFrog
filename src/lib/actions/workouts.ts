@@ -171,9 +171,15 @@ export async function finishWorkout(workoutId: string) {
     where: { workoutId, sets: { none: {} } },
   });
 
+  const now = new Date();
   await prisma.workout.update({
     where: { id: workoutId },
-    data: { finishedAt: new Date() },
+    data: { finishedAt: now },
+  });
+  // Stamp the session end time, but don't clobber a value the user has edited.
+  await prisma.workout.updateMany({
+    where: { id: workoutId, endedAt: null },
+    data: { endedAt: now },
   });
 
   revalidateWorkoutViews(workoutId);
@@ -186,7 +192,7 @@ export async function reopenWorkout(workoutId: string) {
   await assertOwnWorkout(userId, workoutId);
   await prisma.workout.update({
     where: { id: workoutId },
-    data: { finishedAt: null },
+    data: { finishedAt: null, endedAt: null },
   });
   revalidateWorkoutViews(workoutId);
   redirect(`/dashboard/workouts/${workoutId}`);
@@ -205,6 +211,8 @@ const updateWorkoutSchema = z.object({
   name: z.string().trim().max(80).nullish(),
   notes: z.string().trim().max(2000).nullish(),
   date: z.string().optional(),
+  startedAt: z.string().datetime({ offset: true }).optional(),
+  endedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export async function updateWorkout(input: z.infer<typeof updateWorkoutSchema>) {
@@ -212,12 +220,25 @@ export async function updateWorkout(input: z.infer<typeof updateWorkoutSchema>) 
   const data = updateWorkoutSchema.parse(input);
   await assertOwnWorkout(userId, data.workoutId);
 
+  const startedAt = data.startedAt ? new Date(data.startedAt) : undefined;
+  const endedAt =
+    data.endedAt === undefined
+      ? undefined
+      : data.endedAt === null
+        ? null
+        : new Date(data.endedAt);
+  if (startedAt && endedAt && endedAt < startedAt) {
+    throw new Error("The session can't end before it starts");
+  }
+
   await prisma.workout.update({
     where: { id: data.workoutId },
     data: {
       name: data.name ?? undefined,
       notes: data.notes ?? undefined,
       date: data.date ? new Date(data.date) : undefined,
+      startedAt,
+      endedAt,
     },
   });
   revalidateWorkoutViews(data.workoutId);
