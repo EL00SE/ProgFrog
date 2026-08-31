@@ -44,6 +44,31 @@ function revalidateWorkoutViews(workoutId: string) {
   revalidatePath("/dashboard/progress");
 }
 
+/**
+ * Only one workout is open at a time. If the user already has an unfinished
+ * workout: return its id when it has real logged data (callers resume it instead
+ * of creating a duplicate), otherwise delete the empty scaffold and return null.
+ * An empty leftover is exactly what a double-tap on "start" leaves behind.
+ */
+async function claimOpenWorkout(userId: string): Promise<string | null> {
+  const open = await prisma.workout.findFirst({
+    where: { userId, finishedAt: null },
+    select: { id: true },
+  });
+  if (!open) return null;
+
+  const logged = await prisma.setEntry.count({
+    where: {
+      workoutExercise: { workoutId: open.id },
+      OR: [{ reps: { gt: 0 } }, { seconds: { gt: 0 } }],
+    },
+  });
+  if (logged > 0) return open.id;
+
+  await prisma.workout.delete({ where: { id: open.id } });
+  return null;
+}
+
 /** Confirms the workout exists and belongs to the signed-in user. */
 async function assertOwnWorkout(userId: string, workoutId: string) {
   const workout = await prisma.workout.findFirst({
@@ -93,16 +118,16 @@ export async function createWorkout(formData: FormData) {
     return startWorkoutFromTemplateDay(parsed.templateDayId);
   }
 
-  const existing = await prisma.workout.findFirst({
-    where: { userId: user.id, finishedAt: null },
+  const resume = await claimOpenWorkout(user.id);
+  if (resume) {
+    revalidateWorkoutViews(resume);
+    redirect(`/dashboard/workouts/${resume}`);
+  }
+
+  const workout = await prisma.workout.create({
+    data: { userId: user.id, name: parsed.name, unit: user.weightUnit },
     select: { id: true },
   });
-  const workout =
-    existing ??
-    (await prisma.workout.create({
-      data: { userId: user.id, name: parsed.name, unit: user.weightUnit },
-      select: { id: true },
-    }));
 
   revalidateWorkoutViews(workout.id);
   redirect(`/dashboard/workouts/${workout.id}`);
@@ -111,6 +136,13 @@ export async function createWorkout(formData: FormData) {
 export async function startWorkoutFromTemplateDay(templateDayId: string) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthorized");
+
+  // Resume an in-progress workout rather than opening a second one.
+  const resume = await claimOpenWorkout(user.id);
+  if (resume) {
+    revalidateWorkoutViews(resume);
+    redirect(`/dashboard/workouts/${resume}`);
+  }
 
   const day = await prisma.templateDay.findFirst({
     where: { id: templateDayId, template: { userId: user.id } },
