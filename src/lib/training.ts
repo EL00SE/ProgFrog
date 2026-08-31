@@ -61,11 +61,11 @@ export function localDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Local midnight on the Monday of `date`'s week. */
+/** Local midnight on the Sunday that starts `date`'s week (weeks run Sun–Sat). */
 export function startOfWeek(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  d.setDate(d.getDate() - d.getDay());
   return d;
 }
 

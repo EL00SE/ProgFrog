@@ -125,18 +125,25 @@ describe("personalRecords", () => {
 });
 
 describe("startOfWeek", () => {
-  it("returns the Monday of the week at local midnight", () => {
-    // 2026-08-31 is a Monday
-    const mon = startOfWeek(new Date("2026-09-02T15:30:00"));
-    expect(mon.getFullYear()).toBe(2026);
-    expect(mon.getMonth()).toBe(7); // August
-    expect(mon.getDate()).toBe(31);
-    expect(mon.getHours()).toBe(0);
+  it("returns the Sunday of the week at local midnight", () => {
+    // 2026-09-02 is a Wednesday; its week starts Sunday 2026-08-30
+    const sun = startOfWeek(new Date("2026-09-02T15:30:00"));
+    expect(sun.getFullYear()).toBe(2026);
+    expect(sun.getMonth()).toBe(7); // August
+    expect(sun.getDate()).toBe(30);
+    expect(sun.getHours()).toBe(0);
   });
 
-  it("treats Sunday as the end of the same week", () => {
+  it("returns the same day for a Sunday", () => {
     const sun = startOfWeek(new Date("2026-09-06T12:00:00")); // Sunday
-    expect(sun.getDate()).toBe(31); // still the 31 Aug Monday
+    expect(sun.getMonth()).toBe(8); // September
+    expect(sun.getDate()).toBe(6);
+  });
+
+  it("treats Saturday as the last day of the same week", () => {
+    const sat = startOfWeek(new Date("2026-09-05T12:00:00")); // Saturday
+    expect(sat.getMonth()).toBe(7); // back to Sunday 30 Aug
+    expect(sat.getDate()).toBe(30);
   });
 });
 
