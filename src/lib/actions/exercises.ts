@@ -23,6 +23,11 @@ const exerciseSchema = z.object({
   muscle: z.string().trim().max(40).optional(),
 });
 
+const createSchema = exerciseSchema.extend({
+  /** idempotency key from the offline outbox */
+  clientId: z.string().min(1).max(60).optional(),
+});
+
 function revalidateExerciseViews() {
   revalidatePath("/dashboard/exercises");
   revalidatePath("/dashboard/progress");
@@ -52,23 +57,35 @@ const exerciseSelect = {
 
 /** Create a private custom exercise for the signed-in user. */
 export async function createCustomExercise(
-  input: z.infer<typeof exerciseSchema>,
+  input: z.infer<typeof createSchema>,
 ): Promise<ExerciseActionResult> {
   const userId = await getCurrentUserId();
-  const parsed = exerciseSchema.safeParse(input);
+  const parsed = createSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { name, equipment, muscle } = parsed.data;
+  const { name, equipment, muscle, clientId } = parsed.data;
+
+  // Replayed from the offline outbox — hand back what was already created.
+  if (clientId) {
+    const prior = await prisma.exercise.findUnique({
+      where: { clientId },
+      select: exerciseSelect,
+    });
+    if (prior) return { ok: true, exercise: prior };
+  }
 
   const clash = await prisma.exercise.findFirst({
     where: {
       name: { equals: name, mode: "insensitive" },
       OR: [{ ownerId: null }, { ownerId: userId }],
     },
-    select: { id: true },
+    select: exerciseSelect,
   });
   if (clash) {
+    // An outbox replay for a name that now exists resolves to that exercise;
+    // an interactive create still tells the user it's a duplicate.
+    if (clientId) return { ok: true, exercise: clash };
     return { ok: false, error: `"${name}" already exists in your catalog` };
   }
 
@@ -78,6 +95,7 @@ export async function createCustomExercise(
       equipment,
       muscle: muscle || null,
       ownerId: userId,
+      clientId,
     },
     select: exerciseSelect,
   });

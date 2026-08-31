@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { createCustomExercise } from "@/lib/actions/exercises";
 import {
   addExerciseToWorkout,
   addSet,
@@ -37,6 +38,11 @@ type Job =
       args: Parameters<typeof reorderWorkoutExercises>[0];
     }
   | { kind: "assignExercise"; args: { workoutExerciseId: string; exerciseId: string } }
+  | {
+      kind: "createExercise";
+      tempId: string;
+      args: { name: string; equipment: string; muscle?: string };
+    }
   | {
       kind: "addSet";
       tempId: string;
@@ -111,7 +117,15 @@ function resolveIds(job: QueuedJob): QueuedJob {
     case "assignExercise":
       return {
         ...job,
-        args: { ...job.args, workoutExerciseId: fix(job.args.workoutExerciseId) },
+        args: {
+          workoutExerciseId: fix(job.args.workoutExerciseId),
+          exerciseId: fix(job.args.exerciseId),
+        },
+      };
+    case "addExercise":
+      return {
+        ...job,
+        args: { ...job.args, exerciseId: fix(job.args.exerciseId) },
       };
     case "addSet":
       return {
@@ -148,6 +162,16 @@ async function run(job: QueuedJob): Promise<void> {
     case "assignExercise":
       await assignWorkoutEntryExercise(job.args);
       return;
+    case "createExercise": {
+      const res = await createCustomExercise({
+        ...job.args,
+        equipment: job.args.equipment as never,
+        clientId: job.tempId,
+      });
+      if (!res.ok) throw new Error(res.error);
+      finishCreate(job.tempId, res.exercise.id);
+      return;
+    }
     case "addSet": {
       const created = await addSet(job.args.workoutExerciseId, {
         type: job.args.type as never,
@@ -241,16 +265,21 @@ function enqueue(job: Job) {
 function cancelPendingCreate(tempId: string) {
   queue = queue.filter((j) => {
     if (
-      (j.kind === "addSet" || j.kind === "addExercise" || j.kind === "addSlot") &&
+      (j.kind === "addSet" ||
+        j.kind === "addExercise" ||
+        j.kind === "addSlot" ||
+        j.kind === "createExercise") &&
       j.tempId === tempId
     ) {
       return false;
     }
     if (j.kind === "updateSet" || j.kind === "deleteSet") return j.args.setId !== tempId;
-    if (j.kind === "updateWorkoutExercise" || j.kind === "assignExercise") {
-      return j.args.workoutExerciseId !== tempId;
+    if (j.kind === "assignExercise") {
+      return j.args.workoutExerciseId !== tempId && j.args.exerciseId !== tempId;
     }
+    if (j.kind === "updateWorkoutExercise") return j.args.workoutExerciseId !== tempId;
     if (j.kind === "addSet") return j.args.workoutExerciseId !== tempId;
+    if (j.kind === "addExercise") return j.args.exerciseId !== tempId;
     return true;
   });
   persist();
@@ -271,6 +300,10 @@ export const outbox = {
     enqueue({ kind: "updateWorkoutExercise", args }),
   addSet: (tempId: string, args: { workoutExerciseId: string; type?: string }) =>
     enqueue({ kind: "addSet", tempId, args }),
+  createExercise: (
+    tempId: string,
+    args: { name: string; equipment: string; muscle?: string },
+  ) => enqueue({ kind: "createExercise", tempId, args }),
   addExercise: (tempId: string, args: { workoutId: string; exerciseId: string }) =>
     enqueue({ kind: "addExercise", tempId, args }),
   addSlot: (tempId: string, args: { workoutId: string; muscle: string; role: string }) =>

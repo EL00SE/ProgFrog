@@ -136,6 +136,8 @@ enum ExerciseLink {
 /// everyone; a set `ownerId` is a private custom exercise for that one user.
 model Exercise {
   id         String        @id @default(cuid())
+  /// Idempotency key from the offline outbox — lets a replayed create no-op.
+  clientId   String?       @unique
   name       String
   equipment  Equipment     @default(BARBELL)
   muscle     String?

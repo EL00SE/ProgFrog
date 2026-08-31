@@ -206,13 +206,18 @@ export function WorkoutLogger({
     return () => clearTimeout(t);
   }, [workout.id, exercises]);
 
-  // When a queued create (set or exercise) syncs, swap its temp id for the real one.
+  // When a queued create (set / exercise / custom exercise) syncs, swap its
+  // temp id for the real one everywhere it appears in local state.
   React.useEffect(
     () =>
       outbox.onSwap((tempId, realId) =>
         setExercises((list) =>
           list.map((e) => ({
-            ...(e.id === tempId ? { ...e, id: realId } : e),
+            ...e,
+            id: e.id === tempId ? realId : e.id,
+            exerciseId: e.exerciseId === tempId ? realId : e.exerciseId,
+            exercise:
+              e.exercise?.id === tempId ? { ...e.exercise, id: realId } : e.exercise,
             sets: e.sets.map((s) => (s.id === tempId ? { ...s, id: realId } : s)),
           })),
         ),
@@ -509,6 +514,7 @@ export function WorkoutLogger({
         <ExercisePickerDialog
           catalog={catalog}
           history={prev}
+          allowOfflineCreate
           onPick={handlePick}
           trigger={
             <Button variant="outline" className="w-full sm:flex-1" disabled={pending}>
@@ -713,6 +719,7 @@ function ExerciseCard({
             history={prev}
             lockMuscle={we.muscle}
             title="Choose exercise"
+            allowOfflineCreate
             onPick={onAssign}
             trigger={
               <Button variant="outline" size="sm" className="w-fit" disabled={disabled}>
@@ -768,6 +775,7 @@ function ExerciseCard({
                 history={prev}
                 lockMuscle={we.muscle}
                 title="Swap exercise"
+                allowOfflineCreate
                 onPick={onAssign}
                 trigger={
                   <Button

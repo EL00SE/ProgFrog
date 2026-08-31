@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { EQUIPMENT_LABELS, formatDate, MUSCLE_GROUPS } from "@/lib/training";
 import { createCustomExercise } from "@/lib/actions/exercises";
+import { outbox, useOutboxStatus } from "@/lib/offline-queue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ export function ExercisePickerDialog({
   trigger,
   lockMuscle,
   title = "Add exercise",
+  allowOfflineCreate = false,
 }: {
   catalog: PickerExercise[];
   /** last-done date per exercise id — surfaces recents and dates in the list */
@@ -50,7 +52,11 @@ export function ExercisePickerDialog({
   trigger: React.ReactNode;
   lockMuscle?: string | null;
   title?: string;
+  /** In the workout logger a new exercise can be created offline (queued);
+   *  elsewhere (template editor) it still needs a connection. */
+  allowOfflineCreate?: boolean;
 }) {
+  const { online } = useOutboxStatus();
   const hist = history ?? {};
   const lastDone = (id: string) => hist[id]?.date ?? null;
   const [open, setOpen] = React.useState(false);
@@ -136,6 +142,31 @@ export function ExercisePickerDialog({
   function handleCreate() {
     const name = query.trim();
     if (!name) return;
+
+    if (!online) {
+      if (!allowOfflineCreate) {
+        toast.error("Reconnect to add a brand-new exercise.");
+        return;
+      }
+      // Optimistic: hand the caller a temp exercise now, queue the real create.
+      const clientId = `local_x_${Date.now().toString(36)}`;
+      const draft: PickerExercise = {
+        id: clientId,
+        name,
+        equipment: newEquipment,
+        muscle: newMuscle,
+        isTimed: false,
+      };
+      outbox.createExercise(clientId, {
+        name,
+        equipment: newEquipment,
+        muscle: newMuscle,
+      });
+      toast.success(`Added "${name}" — will sync when you're online`);
+      pick(clientId, draft);
+      return;
+    }
+
     startTransition(async () => {
       const res = await createCustomExercise({
         name,
