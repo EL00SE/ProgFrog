@@ -31,6 +31,8 @@ export const getCurrentUser = cache(async () => {
       email: true,
       image: true,
       weightUnit: true,
+      heightCm: true,
+      birthday: true,
       createdAt: true,
     },
   });

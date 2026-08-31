@@ -114,6 +114,39 @@ export function convertWeight(value: number, from: WeightUnit, to: WeightUnit): 
   return from === "KG" ? value * LB_PER_KG : value / LB_PER_KG;
 }
 
+const CM_PER_IN = 2.54;
+
+/** Whole years between `birthday` and now. `null` if no birthday. */
+export function ageFromBirthday(
+  birthday: Date | string | null | undefined,
+): number | null {
+  if (!birthday) return null;
+  const b = typeof birthday === "string" ? new Date(birthday) : birthday;
+  if (Number.isNaN(b.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  const m = now.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+/** `5'11"` for LB users, `180 cm` for KG users. */
+export function formatHeight(cm: number | null | undefined, unit: WeightUnit): string {
+  if (!cm || cm <= 0) return "—";
+  if (unit === "KG") return `${Math.round(cm)} cm`;
+  const totalIn = Math.round(cm / CM_PER_IN);
+  return `${Math.floor(totalIn / 12)}'${totalIn % 12}"`;
+}
+
+export function cmToFeetInches(cm: number): { ft: number; in: number } {
+  const totalIn = Math.round(cm / CM_PER_IN);
+  return { ft: Math.floor(totalIn / 12), in: totalIn % 12 };
+}
+
+export function feetInchesToCm(ft: number, inches: number): number {
+  return Math.round((ft * 12 + inches) * CM_PER_IN);
+}
+
 /** Round to a sensible gym increment (0.5) for display. */
 export function roundWeight(value: number): number {
   return Math.round(value * 2) / 2;

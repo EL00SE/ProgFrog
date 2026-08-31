@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ageFromBirthday,
   best1RM,
+  cmToFeetInches,
   convertWeight,
   epley1RM,
+  feetInchesToCm,
+  formatHeight,
   formatDuration,
   groupLinkedExercises,
   isWorkingSet,
@@ -52,6 +56,27 @@ describe("workoutVolume", () => {
       { weight: 100, reps: 5 },
     ];
     expect(workoutVolume(sets)).toBe(1000);
+  });
+});
+
+describe("body helpers", () => {
+  it("ageFromBirthday counts whole years", () => {
+    const twentyYearsAgo = new Date();
+    twentyYearsAgo.setFullYear(twentyYearsAgo.getFullYear() - 20);
+    twentyYearsAgo.setDate(twentyYearsAgo.getDate() - 1); // birthday already passed
+    expect(ageFromBirthday(twentyYearsAgo)).toBe(20);
+    expect(ageFromBirthday(null)).toBe(null);
+  });
+
+  it("formats height per unit", () => {
+    expect(formatHeight(180, "KG")).toBe("180 cm");
+    expect(formatHeight(180, "LB")).toBe("5'11\"");
+    expect(formatHeight(null, "KG")).toBe("—");
+  });
+
+  it("round-trips feet/inches and cm", () => {
+    expect(feetInchesToCm(5, 11)).toBe(180);
+    expect(cmToFeetInches(180)).toEqual({ ft: 5, in: 11 });
   });
 });
 
