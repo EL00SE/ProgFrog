@@ -36,7 +36,9 @@ const workoutExerciseInclude = {
 } as const;
 
 function revalidateWorkoutViews(workoutId: string) {
-  revalidatePath("/dashboard");
+  // "layout" so the dashboard layout's <ActiveWorkoutBar> re-queries too —
+  // otherwise a finished workout keeps showing as "in progress".
+  revalidatePath("/dashboard", "layout");
   revalidatePath("/dashboard/workouts");
   revalidatePath(`/dashboard/workouts/${workoutId}`);
   revalidatePath("/dashboard/progress");
@@ -260,7 +262,7 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
     include: workoutExerciseInclude,
   });
 
-  revalidateWorkoutViews(data.workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
   return created;
 }
 
@@ -290,7 +292,7 @@ export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
     include: workoutExerciseInclude,
   });
 
-  revalidateWorkoutViews(data.workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
   return created;
 }
 
@@ -303,7 +305,7 @@ const assignSchema = z.object({
 export async function assignWorkoutEntryExercise(input: z.infer<typeof assignSchema>) {
   const userId = await getCurrentUserId();
   const data = assignSchema.parse(input);
-  const workoutId = await assertOwnWorkoutExercise(userId, data.workoutExerciseId);
+  await assertOwnWorkoutExercise(userId, data.workoutExerciseId);
 
   const exercise = await prisma.exercise.findFirst({
     where: { id: data.exerciseId, OR: [{ ownerId: null }, { ownerId: userId }] },
@@ -326,15 +328,49 @@ export async function assignWorkoutEntryExercise(input: z.infer<typeof assignSch
     include: workoutExerciseInclude,
   });
 
-  revalidateWorkoutViews(workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
   return updated;
 }
 
 export async function removeWorkoutExercise(workoutExerciseId: string) {
   const userId = await getCurrentUserId();
-  const workoutId = await assertOwnWorkoutExercise(userId, workoutExerciseId);
+  await assertOwnWorkoutExercise(userId, workoutExerciseId);
   await prisma.workoutExercise.delete({ where: { id: workoutExerciseId } });
-  revalidateWorkoutViews(workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
+  return { ok: true as const };
+}
+
+const reorderExercisesSchema = z.object({
+  workoutId: z.string().min(1),
+  orderedIds: z.array(z.string().min(1)).min(1),
+});
+
+/** Persist a new exercise order for an in-progress workout. */
+export async function reorderWorkoutExercises(
+  input: z.infer<typeof reorderExercisesSchema>,
+) {
+  const userId = await getCurrentUserId();
+  const data = reorderExercisesSchema.parse(input);
+  await assertOwnWorkout(userId, data.workoutId);
+
+  const owned = await prisma.workoutExercise.findMany({
+    where: { workoutId: data.workoutId },
+    select: { id: true },
+  });
+  const ownedIds = new Set(owned.map((e) => e.id));
+  if (
+    data.orderedIds.length !== owned.length ||
+    data.orderedIds.some((id) => !ownedIds.has(id))
+  ) {
+    throw new Error("Order doesn't match this workout");
+  }
+
+  await prisma.$transaction(
+    data.orderedIds.map((id, order) =>
+      prisma.workoutExercise.update({ where: { id }, data: { order } }),
+    ),
+  );
+  // No revalidate — the logger owns its state; see updateSet().
   return { ok: true as const };
 }
 
@@ -369,7 +405,11 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
 
 export async function addSet(workoutExerciseId: string, opts?: { type?: SetType }) {
   const userId = await getCurrentUserId();
-  const workoutId = await assertOwnWorkoutExercise(userId, workoutExerciseId);
+  const we = await prisma.workoutExercise.findFirst({
+    where: { id: workoutExerciseId, workout: { userId } },
+    select: { exerciseId: true },
+  });
+  if (!we) throw new Error("Exercise not found");
 
   // Copy the last set's load so repeated sets are one tap.
   const last = await prisma.setEntry.findFirst({
@@ -377,25 +417,46 @@ export async function addSet(workoutExerciseId: string, opts?: { type?: SetType 
     orderBy: { order: "desc" },
   });
 
+  // First set of this exercise today — seed from the last time it was trained
+  // so the picker opens near a sensible load instead of at zero.
+  let seedWeight = last?.weight ?? 0;
+  let seedReps = last?.reps ?? 0;
+  if (!last && we.exerciseId) {
+    const prevSet = await prisma.setEntry.findFirst({
+      where: {
+        type: { not: "WARMUP" },
+        reps: { gt: 0 },
+        workoutExercise: {
+          exerciseId: we.exerciseId,
+          workout: { userId, finishedAt: { not: null } },
+        },
+      },
+      orderBy: [{ workoutExercise: { workout: { date: "desc" } } }, { order: "desc" }],
+    });
+    if (prevSet) {
+      seedWeight = prevSet.weight;
+      seedReps = prevSet.reps;
+    }
+  }
+
   const type = (opts?.type ?? "NORMAL") as SetType;
-  const lastWeight = last?.weight ?? 0;
   // A drop set is lighter by definition — start it ~20% down (nearest 0.5) so
   // the intent is obvious; the user still adjusts.
   const weight =
-    type === "DROP" && lastWeight > 0
-      ? Math.max(0, Math.round(lastWeight * 0.8 * 2) / 2)
-      : lastWeight;
+    type === "DROP" && seedWeight > 0
+      ? Math.max(0, Math.round(seedWeight * 0.8 * 2) / 2)
+      : seedWeight;
 
   const created = await prisma.setEntry.create({
     data: {
       workoutExerciseId,
       order: last ? last.order + 1 : 0,
       type,
-      reps: last?.reps ?? 0,
+      reps: seedReps,
       weight,
     },
   });
-  revalidateWorkoutViews(workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
   return created;
 }
 
@@ -430,8 +491,8 @@ export async function updateSet(input: z.infer<typeof updateSetSchema>) {
 
 export async function deleteSet(setId: string) {
   const userId = await getCurrentUserId();
-  const workoutId = await assertOwnSet(userId, setId);
+  await assertOwnSet(userId, setId);
   await prisma.setEntry.delete({ where: { id: setId } });
-  revalidateWorkoutViews(workoutId);
+  // No revalidate — the logger owns its state; see updateSet().
   return { ok: true as const };
 }

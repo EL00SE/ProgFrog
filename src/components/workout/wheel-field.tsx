@@ -2,22 +2,10 @@
 
 import * as React from "react";
 
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { formatWeight, type WeightUnit } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-
-/** True on phone-width screens. Starts false (SSR-safe), settles after mount. */
-function useIsMobile() {
-  const [mobile, setMobile] = React.useState(false);
-  React.useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-  return mobile;
-}
 
 function range(from: number, to: number, step: number) {
   const out: number[] = [];

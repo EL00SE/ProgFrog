@@ -3,7 +3,9 @@
 import * as React from "react";
 import {
   Check,
+  ChevronDown,
   ChevronsDown,
+  ChevronUp,
   Link2,
   Play,
   Plus,
@@ -43,9 +45,11 @@ import {
   deleteWorkout,
   finishWorkout,
   removeWorkoutExercise,
+  reorderWorkoutExercises,
   updateSet,
   updateWorkoutExercise,
 } from "@/lib/actions/workouts";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -164,6 +168,19 @@ export function WorkoutLogger({
     });
   }
 
+  function handleMoveExercise(weId: string, dir: -1 | 1) {
+    const i = exercises.findIndex((e) => e.id === weId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= exercises.length) return;
+    const next = [...exercises];
+    [next[i], next[j]] = [next[j], next[i]];
+    setExercises(next);
+    reorderWorkoutExercises({
+      workoutId: workout.id,
+      orderedIds: next.map((e) => e.id),
+    }).catch(() => toast.error("Couldn't save the new order"));
+  }
+
   function handleDeleteSet(weId: string, setId: string) {
     setExercises((prev) =>
       prev.map((e) =>
@@ -259,6 +276,10 @@ export function WorkoutLogger({
           catalog,
           prev,
           prevForExercise: we.exercise ? prev[we.exercise.id] : undefined,
+          canMoveUp: exercises.findIndex((e) => e.id === we.id) > 0,
+          canMoveDown: exercises.findIndex((e) => e.id === we.id) < exercises.length - 1,
+          onMoveUp: () => handleMoveExercise(we.id, -1),
+          onMoveDown: () => handleMoveExercise(we.id, 1),
           onRemove: () => handleRemoveExercise(we.id),
           onAddSet: () => handleAddSet(we.id),
           onAddDropSet: () => handleAddSet(we.id, { type: "DROP" }),
@@ -379,6 +400,10 @@ function ExerciseCard({
   prev,
   prevForExercise,
   inGroup = false,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   onRemove,
   onAddSet,
   onAddDropSet,
@@ -398,6 +423,10 @@ function ExerciseCard({
   prev: PrevMap;
   prevForExercise?: ExercisePrev;
   inGroup?: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onRemove: () => void;
   onAddSet: () => void;
   onAddDropSet: () => void;
@@ -464,15 +493,41 @@ function ExerciseCard({
               </p>
             ) : null}
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onRemove}
-            disabled={disabled}
-            aria-label="Remove"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <div className="flex shrink-0 items-start gap-0.5">
+            {!inGroup && (canMoveUp || canMoveDown) ? (
+              <div className="flex flex-col">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-4"
+                  onClick={onMoveUp}
+                  disabled={disabled || !canMoveUp}
+                  aria-label="Move exercise up"
+                >
+                  <ChevronUp className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-4"
+                  onClick={onMoveDown}
+                  disabled={disabled || !canMoveDown}
+                  aria-label="Move exercise down"
+                >
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              </div>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onRemove}
+              disabled={disabled}
+              aria-label="Remove"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
         </div>
 
         {unfilled ? (
@@ -623,6 +678,74 @@ const SET_TYPE_TONE: Record<SetType, string> = {
   FAILURE: "text-rose-600 dark:text-rose-400",
 };
 
+/**
+ * The compact set-type control. A radix Select on desktop; on phones a native
+ * `<select>` (kept invisible over the coloured token) so the OS picker opens
+ * full-width instead of a cramped menu in the corner.
+ */
+function SetTypeField({
+  value,
+  token,
+  tone,
+  label,
+  onChange,
+}: {
+  value: SetType;
+  token: React.ReactNode;
+  tone: string;
+  label: string;
+  onChange: (type: SetType) => void;
+}) {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className={cn("relative h-9 w-full", tone)}>
+        <div
+          aria-hidden
+          className="border-input dark:bg-input/30 flex h-full w-full items-center justify-center rounded-md border px-1.5 text-sm font-semibold tabular-nums shadow-xs"
+        >
+          {token}
+        </div>
+        <select
+          value={value}
+          aria-label={label}
+          onChange={(e) => onChange(e.target.value as SetType)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        >
+          {SET_TYPE_VALUES.map((t) => (
+            <option key={t} value={t}>
+              {SET_TYPE_LABELS[t]}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as SetType)}>
+      <SelectTrigger
+        size="sm"
+        aria-label={label}
+        className={cn(
+          "h-9 w-full justify-center px-1.5 font-semibold tabular-nums",
+          tone,
+        )}
+      >
+        {token}
+      </SelectTrigger>
+      <SelectContent>
+        {SET_TYPE_VALUES.map((t) => (
+          <SelectItem key={t} value={t}>
+            {SET_TYPE_LABELS[t]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function SetRow({
   set,
   number,
@@ -685,31 +808,16 @@ function SetRow({
 
   return (
     <div className="grid grid-cols-[3.25rem_1fr_1fr_1.75rem] items-center gap-2">
-      <Select
+      <SetTypeField
         value={set.type}
-        onValueChange={(v) => {
-          onPatch({ type: v as SetType });
-          onSave({ type: v as SetType });
+        token={token}
+        tone={SET_TYPE_TONE[set.type]}
+        label={`Set type — ${SET_TYPE_LABELS[set.type]}`}
+        onChange={(t) => {
+          onPatch({ type: t });
+          onSave({ type: t });
         }}
-      >
-        <SelectTrigger
-          size="sm"
-          aria-label={`Set type — ${SET_TYPE_LABELS[set.type]}`}
-          className={cn(
-            "h-9 w-full justify-center px-1.5 font-semibold tabular-nums",
-            SET_TYPE_TONE[set.type],
-          )}
-        >
-          {token}
-        </SelectTrigger>
-        <SelectContent>
-          {SET_TYPE_VALUES.map((t) => (
-            <SelectItem key={t} value={t}>
-              {SET_TYPE_LABELS[t]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      />
       <WheelField
         kind="weight"
         value={set.weight}
