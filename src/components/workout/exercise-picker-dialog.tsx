@@ -49,7 +49,9 @@ export function ExercisePickerDialog({
   title = "Add exercise",
 }: {
   catalog: PickerExercise[];
-  onPick: (exerciseId: string) => void | Promise<void>;
+  /** `exercise` is passed when it was just created, so callers can show it
+   *  without waiting for a refetched catalog. */
+  onPick: (exerciseId: string, exercise?: PickerExercise) => void | Promise<void>;
   trigger: React.ReactNode;
   lockMuscle?: string | null;
   lockRole?: string | null;
@@ -112,12 +114,12 @@ export function ExercisePickerDialog({
     setNewRole(lockRole || "SECONDARY");
   }
 
-  function pick(id: string) {
-    startTransition(async () => {
-      await onPick(id);
-      setOpen(false);
-      reset();
-    });
+  function pick(id: string, exercise?: PickerExercise) {
+    // Fire-and-forget (never in a transition — that would defer the caller's
+    // optimistic update) and close.
+    Promise.resolve(onPick(id, exercise)).catch(() => {});
+    setOpen(false);
+    reset();
   }
 
   function handleCreate() {
@@ -135,9 +137,7 @@ export function ExercisePickerDialog({
         return;
       }
       toast.success(`Added "${res.exercise.name}"`);
-      await onPick(res.exercise.id);
-      setOpen(false);
-      reset();
+      pick(res.exercise.id, res.exercise);
     });
   }
 
@@ -150,150 +150,154 @@ export function ExercisePickerDialog({
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="flex h-[85dvh] flex-col gap-3 overflow-hidden sm:h-auto sm:max-h-[80dvh] sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+      {open ? (
+        <DialogContent className="flex h-[85dvh] flex-col gap-3 overflow-hidden sm:h-auto sm:max-h-[80dvh] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
 
-        {(lockMuscle || lockRole) && (
-          <div className="flex items-center gap-2 text-sm">
-            <Badge variant="secondary">
-              {[lockMuscle, lockRole && roleShort(lockRole)].filter(Boolean).join(" · ")}
-            </Badge>
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
-            >
-              {showAll ? "match the slot" : "show all exercises"}
-            </button>
-          </div>
-        )}
-
-        <div className="relative">
-          <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            autoFocus
-            placeholder="Search or type a new name…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-
-        {creating ? (
-          <div className="flex flex-col gap-3 overflow-y-auto rounded-lg border p-3">
-            <p className="text-sm font-medium">
-              New exercise: <span className="text-muted-foreground">{query.trim()}</span>
-            </p>
-            <div className="grid gap-1.5">
-              <Label>Equipment</Label>
-              <Select value={newEquipment} onValueChange={setNewEquipment}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(EQUIPMENT_LABELS).map(([v, label]) => (
-                    <SelectItem key={v} value={v}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Muscle</Label>
-                <Select value={newMuscle} onValueChange={setNewMuscle}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MUSCLE_GROUPS.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Role</Label>
-                <Select value={newRole} onValueChange={setNewRole}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLE_VALUES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreate} disabled={pending}>
-                Create & add
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setCreating(false)}
-                disabled={pending}
-              >
-                Back
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
-            {query.trim() && !exactMatch && (
+          {(lockMuscle || lockRole) && (
+            <div className="flex items-center gap-2 text-sm">
+              <Badge variant="secondary">
+                {[lockMuscle, lockRole && roleShort(lockRole)]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Badge>
               <button
                 type="button"
-                onClick={() => setCreating(true)}
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium"
+                onClick={() => setShowAll((v) => !v)}
+                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
               >
-                <Plus className="size-4" />
-                Create &ldquo;{query.trim()}&rdquo;
+                {showAll ? "match the slot" : "show all exercises"}
               </button>
-            )}
-            {filtered.map(([muscle, items]) => (
-              <div key={muscle} className="mb-2">
-                <p className="text-muted-foreground px-2 py-1 text-xs font-medium tracking-wide uppercase">
-                  {muscle}
-                </p>
-                {items.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    disabled={pending}
-                    onClick={() => pick(e.id)}
-                    className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm disabled:opacity-50"
-                  >
-                    <span className="truncate">{e.name}</span>
-                    <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-                      {e.role ? <span>{roleShort(e.role)}</span> : null}
-                      <span>·</span>
-                      <span>{EQUIPMENT_LABELS[e.equipment]}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <p className="text-muted-foreground p-2 text-sm">
-                {query.trim()
-                  ? "No matches."
-                  : locked
-                    ? "Nothing tagged for this slot yet — type a name to add one."
-                    : "No exercises yet."}
-              </p>
-            )}
+            </div>
+          )}
+
+          <div className="relative">
+            <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Input
+              autoFocus
+              placeholder="Search or type a new name…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-8"
+            />
           </div>
-        )}
-      </DialogContent>
+
+          {creating ? (
+            <div className="flex flex-col gap-3 overflow-y-auto rounded-lg border p-3">
+              <p className="text-sm font-medium">
+                New exercise:{" "}
+                <span className="text-muted-foreground">{query.trim()}</span>
+              </p>
+              <div className="grid gap-1.5">
+                <Label>Equipment</Label>
+                <Select value={newEquipment} onValueChange={setNewEquipment}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(EQUIPMENT_LABELS).map(([v, label]) => (
+                      <SelectItem key={v} value={v}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Muscle</Label>
+                  <Select value={newMuscle} onValueChange={setNewMuscle}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MUSCLE_GROUPS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Role</Label>
+                  <Select value={newRole} onValueChange={setNewRole}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_VALUES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {ROLE_LABELS[r]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleCreate} disabled={pending}>
+                  Create & add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setCreating(false)}
+                  disabled={pending}
+                >
+                  Back
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
+              {query.trim() && !exactMatch && (
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium"
+                >
+                  <Plus className="size-4" />
+                  Create &ldquo;{query.trim()}&rdquo;
+                </button>
+              )}
+              {filtered.map(([muscle, items]) => (
+                <div key={muscle} className="mb-2">
+                  <p className="text-muted-foreground px-2 py-1 text-xs font-medium tracking-wide uppercase">
+                    {muscle}
+                  </p>
+                  {items.map((e) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => pick(e.id, e)}
+                      className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm"
+                    >
+                      <span className="truncate">{e.name}</span>
+                      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+                        {e.role ? <span>{roleShort(e.role)}</span> : null}
+                        <span>·</span>
+                        <span>{EQUIPMENT_LABELS[e.equipment]}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <p className="text-muted-foreground p-2 text-sm">
+                  {query.trim()
+                    ? "No matches."
+                    : locked
+                      ? "Nothing tagged for this slot yet — type a name to add one."
+                      : "No exercises yet."}
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }
