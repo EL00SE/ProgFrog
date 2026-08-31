@@ -17,6 +17,8 @@ export const env = createEnv({
     AUTH_GITHUB_SECRET: z.string().optional(),
     AUTH_GOOGLE_ID: z.string().optional(),
     AUTH_GOOGLE_SECRET: z.string().optional(),
+    // Optional — the in-app training assistant is disabled until this is set.
+    ANTHROPIC_API_KEY: z.string().optional(),
   },
   client: {},
   runtimeEnv: {
@@ -27,6 +29,7 @@ export const env = createEnv({
     AUTH_GITHUB_SECRET: process.env.AUTH_GITHUB_SECRET,
     AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
     AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   },
   emptyStringAsUndefined: true,
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,

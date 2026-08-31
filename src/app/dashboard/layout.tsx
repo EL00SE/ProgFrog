@@ -1,11 +1,15 @@
+import { getCurrentUser } from "@/lib/dal";
 import { SiteHeader } from "@/components/site-header";
 import { DashboardNav, DashboardTabBar } from "@/components/dashboard-nav";
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
+import { ChatWidget } from "@/components/chat/chat-widget";
 import { RouteFade } from "@/components/route-fade";
 import { SwipeNav } from "@/components/swipe-nav";
 import { RestTimer } from "@/components/workout/rest-timer";
 
-export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
+export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
+  const user = await getCurrentUser();
+
   return (
     <>
       <SiteHeader />
@@ -18,6 +22,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       </SwipeNav>
       <DashboardTabBar />
       <RestTimer />
+      <ChatWidget consented={!!user?.chatConsentAt} />
     </>
   );
 }

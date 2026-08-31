@@ -24,6 +24,8 @@ model User {
   weightUnit    WeightUnit @default(KG)
   heightCm      Float?
   birthday      DateTime?
+  /// When the user agreed to let the training assistant read their logged data.
+  chatConsentAt DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 

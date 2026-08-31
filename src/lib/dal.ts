@@ -33,6 +33,7 @@ export const getCurrentUser = cache(async () => {
       weightUnit: true,
       heightCm: true,
       birthday: true,
+      chatConsentAt: true,
       createdAt: true,
     },
   });
