@@ -377,13 +377,22 @@ export async function addSet(workoutExerciseId: string, opts?: { type?: SetType 
     orderBy: { order: "desc" },
   });
 
+  const type = (opts?.type ?? "NORMAL") as SetType;
+  const lastWeight = last?.weight ?? 0;
+  // A drop set is lighter by definition — start it ~20% down (nearest 0.5) so
+  // the intent is obvious; the user still adjusts.
+  const weight =
+    type === "DROP" && lastWeight > 0
+      ? Math.max(0, Math.round(lastWeight * 0.8 * 2) / 2)
+      : lastWeight;
+
   const created = await prisma.setEntry.create({
     data: {
       workoutExerciseId,
       order: last ? last.order + 1 : 0,
-      type: (opts?.type ?? "NORMAL") as SetType,
+      type,
       reps: last?.reps ?? 0,
-      weight: last?.weight ?? 0,
+      weight,
     },
   });
   revalidateWorkoutViews(workoutId);

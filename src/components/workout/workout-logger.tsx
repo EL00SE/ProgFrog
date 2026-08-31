@@ -616,16 +616,20 @@ function SetRow({
   const pending = React.useRef<Partial<SetEntry>>({});
   const timer = React.useRef<number | undefined>(undefined);
 
+  // Only touch shared state once typing settles — so the volume / est-max /
+  // progress readouts don't jitter on every keystroke.
   const flush = React.useCallback(() => {
     if (timer.current) {
       window.clearTimeout(timer.current);
       timer.current = undefined;
     }
     if (Object.keys(pending.current).length) {
-      onSave({ ...pending.current });
+      const patch = { ...pending.current };
       pending.current = {};
+      onPatch(patch);
+      onSave(patch);
     }
-  }, [onSave]);
+  }, [onPatch, onSave]);
 
   // Save anything pending if the row unmounts (e.g. you navigate away mid-type).
   const flushRef = React.useRef(flush);
@@ -635,7 +639,6 @@ function SetRow({
   React.useEffect(() => () => flushRef.current(), []);
 
   function change(patch: Partial<SetEntry>) {
-    onPatch(patch);
     pending.current = { ...pending.current, ...patch };
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(flush, 450);
