@@ -1,3 +1,4 @@
+import { env } from "@/env";
 import { getCurrentUser } from "@/lib/dal";
 import { SiteHeader } from "@/components/site-header";
 import { DashboardNav, DashboardTabBar } from "@/components/dashboard-nav";
@@ -8,7 +9,10 @@ import { SwipeNav } from "@/components/swipe-nav";
 import { RestTimer } from "@/components/workout/rest-timer";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
-  const user = await getCurrentUser();
+  // The training assistant is only wired up when an Anthropic key is configured —
+  // no key, no floating widget. All of its code stays in place.
+  const assistantEnabled = !!env.ANTHROPIC_API_KEY;
+  const user = assistantEnabled ? await getCurrentUser() : null;
 
   return (
     <>
@@ -22,7 +26,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       </SwipeNav>
       <DashboardTabBar />
       <RestTimer />
-      <ChatWidget consented={!!user?.chatConsentAt} />
+      {assistantEnabled ? <ChatWidget consented={!!user?.chatConsentAt} /> : null}
     </>
   );
 }

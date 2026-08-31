@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { ServiceWorker } from "@/components/pwa/service-worker";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -22,6 +23,19 @@ export const metadata: Metadata = {
     template: "%s · ProgFrog",
   },
   description: "Track your workouts, sets, and progress.",
+  applicationName: "ProgFrog",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "ProgFrog",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b3b2e",
+  // Let the app draw into the notch / home-indicator area once installed.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -40,6 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           {children}
           <Toaster />
+          <ServiceWorker />
         </ThemeProvider>
       </body>
     </html>
