@@ -40,7 +40,7 @@ export default async function DashboardPage() {
   const hasHistory = stats.lifetime.workouts > 0;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 md:gap-5">
       <PageHeader
         title={`Welcome back, ${firstName}`}
         description={
@@ -63,10 +63,10 @@ export default async function DashboardPage() {
       </PageHeader>
 
       {hasHistory ? (
-        <>
+        <div className="flex flex-col gap-4 md:gap-3">
           <StreakCard stats={stats} />
           <Scoreboard stats={stats} unit={unit} />
-        </>
+        </div>
       ) : (
         <Card className="from-primary/10 bg-gradient-to-b to-transparent">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {recent.map((w) => (
               <Link
                 key={w.id}
@@ -157,14 +157,14 @@ function StreakCard({ stats }: { stats: DashboardStats }) {
 
   return (
     <Card className="ring-primary/25 from-primary/12 overflow-hidden bg-gradient-to-br via-transparent to-transparent">
-      <CardContent className="flex items-center gap-4 py-2">
-        <div className="bg-primary/15 text-primary flex size-12 shrink-0 items-center justify-center rounded-xl">
-          <Flame className="size-6" />
+      <CardContent className="flex items-center gap-3 py-1.5">
+        <div className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+          <Flame className="size-5" />
         </div>
         <div className="min-w-0">
           {weeks > 0 ? (
             <>
-              <p className="font-heading text-lg font-semibold">{weeks}-week streak</p>
+              <p className="font-heading font-semibold">{weeks}-week streak</p>
               <p className="text-muted-foreground text-sm">
                 {trainedThisWeek
                   ? "This week is in the books. Keep it rolling."
@@ -173,7 +173,7 @@ function StreakCard({ stats }: { stats: DashboardStats }) {
             </>
           ) : (
             <>
-              <p className="font-heading text-lg font-semibold">Start a streak</p>
+              <p className="font-heading font-semibold">Start a streak</p>
               <p className="text-muted-foreground text-sm">
                 Log a workout this week to get your streak going.
               </p>

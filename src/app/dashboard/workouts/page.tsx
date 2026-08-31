@@ -46,14 +46,17 @@ export default async function WorkoutsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {workouts.map((w) => (
             <Link
               key={w.id}
               href={`/dashboard/workouts/${w.id}`}
               className="group focus-visible:ring-ring/50 rounded-xl outline-none focus-visible:ring-3"
             >
-              <Card size="sm" className="group-hover:ring-primary/30 transition-shadow">
+              <Card
+                size="sm"
+                className="group-hover:ring-primary/30 h-full transition-shadow"
+              >
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between gap-2">
                     <span className="truncate">{w.name ?? "Workout"}</span>
@@ -72,11 +75,14 @@ export default async function WorkoutsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-1.5">
-                  {w.exerciseNames.map((name) => (
+                  {w.exerciseNames.slice(0, 4).map((name) => (
                     <Badge key={name} variant="secondary">
                       {name}
                     </Badge>
                   ))}
+                  {w.exerciseNames.length > 4 ? (
+                    <Badge variant="ghost">+{w.exerciseNames.length - 4}</Badge>
+                  ) : null}
                 </CardContent>
               </Card>
             </Link>

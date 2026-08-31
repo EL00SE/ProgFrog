@@ -127,10 +127,12 @@ function SessionTimes({ workout }: { workout: FullWorkout }) {
                 <>
                   {" → "}
                   {ended.toLocaleString("en-US", timeFmt)}
-                  <span className="text-muted-foreground">
-                    {"  ·  "}
-                    {formatDuration((ended.getTime() - started.getTime()) / 60000)}
-                  </span>
+                  {ended.getTime() > started.getTime() ? (
+                    <span className="text-muted-foreground">
+                      {"  ·  "}
+                      {formatDuration((ended.getTime() - started.getTime()) / 60000)}
+                    </span>
+                  ) : null}
                 </>
               ) : null}
             </span>
@@ -210,35 +212,37 @@ export function FinishedWorkoutView({
         </p>
       ) : null}
 
-      {groupLinkedExercises(workout.exercises).map((group, gi) => {
-        if (group.length === 1) {
-          return <ExerciseBlock key={group[0].id} we={group[0]} unit={unit} />;
-        }
-        const accent = `var(--chart-${(gi % 5) + 1})`;
-        return (
-          <div
-            key={group[0].id}
-            className="bg-muted/20 flex flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
-            style={{ borderLeftColor: accent }}
-          >
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
-              <Link2 className="size-4 shrink-0" style={{ color: accent }} />
-              <span className="text-sm font-semibold">{linkedGroupLabel(group)}</span>
-              <span className="text-muted-foreground text-xs">
-                {group.length} exercises, no rest between them
-              </span>
+      <div className="grid items-start gap-3 md:grid-cols-2">
+        {groupLinkedExercises(workout.exercises).map((group, gi) => {
+          if (group.length === 1) {
+            return <ExerciseBlock key={group[0].id} we={group[0]} unit={unit} />;
+          }
+          const accent = `var(--chart-${(gi % 5) + 1})`;
+          return (
+            <div
+              key={group[0].id}
+              className="bg-muted/20 flex flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
+              style={{ borderLeftColor: accent }}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
+                <Link2 className="size-4 shrink-0" style={{ color: accent }} />
+                <span className="text-sm font-semibold">{linkedGroupLabel(group)}</span>
+                <span className="text-muted-foreground text-xs">
+                  {group.length} exercises, no rest between them
+                </span>
+              </div>
+              {group.map((we, k) => (
+                <React.Fragment key={we.id}>
+                  <ExerciseBlock we={we} unit={unit} inGroup />
+                  {k < group.length - 1 && we.linkToNext ? (
+                    <LinkNote link={we.linkToNext} />
+                  ) : null}
+                </React.Fragment>
+              ))}
             </div>
-            {group.map((we, k) => (
-              <React.Fragment key={we.id}>
-                <ExerciseBlock we={we} unit={unit} inGroup />
-                {k < group.length - 1 && we.linkToNext ? (
-                  <LinkNote link={we.linkToNext} />
-                ) : null}
-              </React.Fragment>
-            ))}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
