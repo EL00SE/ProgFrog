@@ -131,11 +131,12 @@ export async function addTemplateDay(templateId: string) {
   const userId = await getCurrentUserId();
   await assertOwnTemplate(userId, templateId);
   const count = await prisma.templateDay.count({ where: { templateId } });
-  await prisma.templateDay.create({
+  const day = await prisma.templateDay.create({
     data: { templateId, name: `Day ${count + 1}`, order: count },
+    include: { exercises: { include: { exercise: true, sets: true } } },
   });
   revalidateTemplateViews(templateId);
-  return { ok: true as const };
+  return day;
 }
 
 const renameDaySchema = z.object({
@@ -199,7 +200,7 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
     where: { templateDayId: data.dayId },
   });
   const setCount = data.targetSets ?? 3;
-  await prisma.templateExercise.create({
+  const created = await prisma.templateExercise.create({
     data: {
       templateDayId: data.dayId,
       exerciseId: data.exerciseId ?? null,
@@ -215,9 +216,10 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
         })),
       },
     },
+    include: { exercise: true, sets: { orderBy: { order: "asc" } } },
   });
   revalidateTemplateViews(templateId);
-  return { ok: true as const };
+  return created;
 }
 
 const updateExerciseSchema = z.object({
@@ -288,7 +290,7 @@ export async function addTemplateSet(templateExerciseId: string) {
     where: { templateExerciseId },
     orderBy: { order: "desc" },
   });
-  await prisma.templateSet.create({
+  const created = await prisma.templateSet.create({
     data: {
       templateExerciseId,
       order: last ? last.order + 1 : 0,
@@ -296,7 +298,7 @@ export async function addTemplateSet(templateExerciseId: string) {
     },
   });
   revalidateTemplateViews(templateId);
-  return { ok: true as const };
+  return created;
 }
 
 const updateSetSchema = z.object({

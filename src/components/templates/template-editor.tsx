@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ChevronsDown, Play, Plus, Repeat2, Trash2, X } from "lucide-react";
 
 import {
@@ -51,25 +52,297 @@ import {
   type PickerExercise,
 } from "@/components/workout/exercise-picker-dialog";
 
-type Slot = FullTemplate["days"][number]["exercises"][number];
+type FT = FullTemplate;
+type Day = FT["days"][number];
+type Slot = Day["exercises"][number];
+type PlannedSet = Slot["sets"][number];
 
 const slotTitle = (s: Slot | undefined) =>
   s ? (s.exercise?.name ?? roleLabel(s.muscle, s.role)) : null;
 
+let tmpSeq = 0;
+const tmpId = () => `tmp_${Date.now().toString(36)}_${tmpSeq++}`;
+
+/** Replace an optimistic slot with the saved one, keeping any edits the user
+ *  made to its sets in the meantime (matched by position). */
+function swapSlot(t: FT, tempId: string, real: Slot, tempSets: Slot["sets"]): FT {
+  return {
+    ...t,
+    days: t.days.map((d) => ({
+      ...d,
+      exercises: d.exercises.map((e) => {
+        if (e.id !== tempId) return e;
+        return {
+          ...real,
+          sets: real.sets.map((rs, i) => {
+            const local = e.sets.find((x) => x.id === tempSets[i]?.id) ?? tempSets[i];
+            return local ? { ...rs, type: local.type, targetReps: local.targetReps } : rs;
+          }),
+        };
+      }),
+    })),
+  };
+}
+
+/**
+ * Editor for one template. Every change updates local state immediately and
+ * persists in the background — no full-page refetch, so it feels instant. On a
+ * save error we reload to resync with the server.
+ */
 export function TemplateEditor({
-  template,
+  template: initial,
   catalog,
 }: {
-  template: FullTemplate;
+  template: FT;
   catalog: PickerExercise[];
 }) {
   const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
-  const run = (fn: () => Promise<unknown>) =>
-    startTransition(async () => {
-      await fn();
-      router.refresh();
+  const [template, setTemplate] = React.useState(initial);
+  // `adding` gates the create buttons for ~1s while a new row is persisted, so
+  // there is never a second create racing an unsaved id. Edits never block.
+  const [adding, startAdding] = React.useTransition();
+  const [, startSaving] = React.useTransition();
+  // Edits made to a not-yet-saved (temp id) row are queued and replayed with the
+  // real id once its create resolves.
+  const queued = React.useRef(new Map<string, ((id: string) => Promise<unknown>)[]>());
+
+  const persist = React.useCallback(
+    (fn: () => Promise<unknown>) => {
+      startSaving(async () => {
+        try {
+          await fn();
+        } catch {
+          toast.error("Couldn't save that change — reloading");
+          router.refresh();
+        }
+      });
+    },
+    [router],
+  );
+
+  /** Persist an edit now, or queue it if the row's id isn't real yet. */
+  const persistFor = React.useCallback(
+    (id: string, make: (id: string) => Promise<unknown>) => {
+      if (id.startsWith("tmp_")) {
+        queued.current.set(id, [...(queued.current.get(id) ?? []), make]);
+      } else {
+        persist(() => make(id));
+      }
+    },
+    [persist],
+  );
+
+  const flushQueued = React.useCallback(
+    (tempId: string, realId: string) => {
+      const q = queued.current.get(tempId);
+      queued.current.delete(tempId);
+      q?.forEach((make) => persist(() => make(realId)));
+    },
+    [persist],
+  );
+
+  // --- local, immutable mutators -----------------------------------------
+  const patchTemplate = (p: Partial<FT>) => setTemplate((t) => ({ ...t, ...p }));
+  const editDay = (dayId: string, fn: (d: Day) => Day) =>
+    setTemplate((t) => ({
+      ...t,
+      days: t.days.map((d) => (d.id === dayId ? fn(d) : d)),
+    }));
+  const editSlot = (slotId: string, fn: (s: Slot) => Slot) =>
+    setTemplate((t) => ({
+      ...t,
+      days: t.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) => (e.id === slotId ? fn(e) : e)),
+      })),
+    }));
+  const editSet = (setId: string, fn: (s: PlannedSet) => PlannedSet) =>
+    setTemplate((t) => ({
+      ...t,
+      days: t.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) => ({
+          ...e,
+          sets: e.sets.map((s) => (s.id === setId ? fn(s) : s)),
+        })),
+      })),
+    }));
+
+  // --- template ---------------------------------------------------------
+  function renameTemplate(name: string) {
+    if (!name || name === template.name) return;
+    patchTemplate({ name });
+    persist(() => updateTemplate({ templateId: template.id, name }));
+  }
+  function setDescription(next: string | null) {
+    if ((next ?? null) === (template.description ?? null)) return;
+    patchTemplate({ description: next });
+    persist(() => updateTemplate({ templateId: template.id, description: next }));
+  }
+
+  // --- days ------------------------------------------------------------
+  function addDay() {
+    const tempId = tmpId();
+    const order = template.days.length;
+    const temp: Day = {
+      id: tempId,
+      templateId: template.id,
+      name: `Day ${order + 1}`,
+      order,
+      exercises: [],
+    };
+    setTemplate((t) => ({ ...t, days: [...t.days, temp] }));
+    startAdding(async () => {
+      try {
+        const real = (await addTemplateDay(template.id)) as Day;
+        setTemplate((t) => ({
+          ...t,
+          days: t.days.map((d) => (d.id === tempId ? real : d)),
+        }));
+        flushQueued(tempId, real.id);
+      } catch {
+        toast.error("Couldn't add a day");
+        setTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== tempId) }));
+      }
     });
+  }
+  function renameDay(dayId: string, name: string) {
+    editDay(dayId, (d) => ({ ...d, name }));
+    persistFor(dayId, (id) => renameTemplateDay({ dayId: id, name }));
+  }
+  function removeDay(dayId: string) {
+    setTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== dayId) }));
+    persist(() => removeTemplateDay(dayId));
+  }
+
+  // --- slots ----------------------------------------------------------
+  function addSlot(
+    dayId: string,
+    input: { exerciseId?: string; muscle?: string; role?: string },
+  ) {
+    const tempId = tmpId();
+    const picked = input.exerciseId
+      ? (catalog.find((c) => c.id === input.exerciseId) ?? null)
+      : null;
+    const day = template.days.find((d) => d.id === dayId);
+    const temp: Slot = {
+      id: tempId,
+      templateDayId: dayId,
+      exerciseId: input.exerciseId ?? null,
+      exercise: picked ? (picked as unknown as Slot["exercise"]) : null,
+      muscle: (input.muscle ?? picked?.muscle ?? null) as Slot["muscle"],
+      role: (input.role ?? picked?.role ?? null) as Slot["role"],
+      order: day?.exercises.length ?? 0,
+      targetReps: "8-12",
+      linkToNext: null,
+      sets: [0, 1, 2].map(
+        (o) =>
+          ({
+            id: tmpId(),
+            templateExerciseId: tempId,
+            order: o,
+            type: "NORMAL",
+            targetReps: null,
+          }) as PlannedSet,
+      ),
+    };
+    editDay(dayId, (d) => ({ ...d, exercises: [...d.exercises, temp] }));
+    startAdding(async () => {
+      try {
+        const real = (await addTemplateExercise({ dayId, ...input })) as Slot;
+        setTemplate((t) => swapSlot(t, tempId, real, temp.sets));
+        flushQueued(tempId, real.id);
+        temp.sets.forEach((ts, i) => flushQueued(ts.id, real.sets[i]?.id ?? ts.id));
+      } catch {
+        toast.error("Couldn't add that");
+        editDay(dayId, (d) => ({
+          ...d,
+          exercises: d.exercises.filter((e) => e.id !== tempId),
+        }));
+      }
+    });
+  }
+  function setSlotExercise(slotId: string, exerciseId: string | null) {
+    const picked = exerciseId ? (catalog.find((c) => c.id === exerciseId) ?? null) : null;
+    editSlot(slotId, (s) => ({
+      ...s,
+      exerciseId,
+      exercise: picked
+        ? ({
+            ...(s.exercise ?? {}),
+            id: picked.id,
+            name: picked.name,
+            equipment: picked.equipment,
+            muscle: picked.muscle,
+            role: picked.role,
+          } as Slot["exercise"])
+        : null,
+      muscle: s.muscle ?? picked?.muscle ?? null,
+      role: (s.role ?? picked?.role ?? null) as Slot["role"],
+    }));
+    persistFor(slotId, (id) => updateTemplateExercise({ id, exerciseId }));
+  }
+  function removeSlot(slotId: string) {
+    setTemplate((t) => ({
+      ...t,
+      days: t.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.filter((e) => e.id !== slotId),
+      })),
+    }));
+    persist(() => removeTemplateExercise(slotId));
+  }
+  function setDefaultReps(slotId: string, targetReps: string | null) {
+    editSlot(slotId, (s) => ({ ...s, targetReps }));
+    persistFor(slotId, (id) => updateTemplateExercise({ id, targetReps }));
+  }
+  function setLink(slotId: string, linkToNext: ExerciseLink | null) {
+    editSlot(slotId, (s) => ({ ...s, linkToNext }));
+    persistFor(slotId, (id) => updateTemplateExercise({ id, linkToNext }));
+  }
+
+  // --- planned sets ---------------------------------------------------
+  function addSet(slotId: string) {
+    const tempId = tmpId();
+    const slot = template.days.flatMap((d) => d.exercises).find((e) => e.id === slotId);
+    const last = slot?.sets.at(-1);
+    const temp: PlannedSet = {
+      id: tempId,
+      templateExerciseId: slotId,
+      order: (last?.order ?? -1) + 1,
+      type: last?.type ?? "NORMAL",
+      targetReps: null,
+    };
+    editSlot(slotId, (s) => ({ ...s, sets: [...s.sets, temp] }));
+    startAdding(async () => {
+      try {
+        const real = (await addTemplateSet(slotId)) as PlannedSet;
+        editSlot(slotId, (s) => ({
+          ...s,
+          sets: s.sets.map((x) => (x.id === tempId ? { ...x, id: real.id } : x)),
+        }));
+        flushQueued(tempId, real.id);
+      } catch {
+        toast.error("Couldn't add a set");
+        editSlot(slotId, (s) => ({
+          ...s,
+          sets: s.sets.filter((x) => x.id !== tempId),
+        }));
+      }
+    });
+  }
+  function setSetType(setId: string, type: SetType) {
+    editSet(setId, (s) => ({ ...s, type }));
+    persistFor(setId, (id) => updateTemplateSet({ id, type }));
+  }
+  function setSetReps(setId: string, targetReps: string | null) {
+    editSet(setId, (s) => ({ ...s, targetReps }));
+    persistFor(setId, (id) => updateTemplateSet({ id, targetReps }));
+  }
+  function removeSet(slotId: string, setId: string) {
+    editSlot(slotId, (s) => ({ ...s, sets: s.sets.filter((x) => x.id !== setId) }));
+    persist(() => removeTemplateSet(setId));
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,28 +353,13 @@ export function TemplateEditor({
           maxLength={80}
           aria-label="Template name"
           className="h-auto border-0 bg-transparent px-0 text-xl font-bold tracking-tight shadow-none focus-visible:ring-0 sm:text-2xl dark:bg-transparent"
-          onBlur={(e) => {
-            const name = e.target.value.trim();
-            if (name && name !== template.name) {
-              run(() => updateTemplate({ templateId: template.id, name }));
-            }
-          }}
+          onBlur={(e) => renameTemplate(e.target.value.trim())}
         />
         <Textarea
           defaultValue={template.description ?? ""}
           placeholder="Notes about this split (optional)"
           maxLength={500}
-          onBlur={(e) => {
-            const description = e.target.value.trim();
-            if (description !== (template.description ?? "")) {
-              run(() =>
-                updateTemplate({
-                  templateId: template.id,
-                  description: description || null,
-                }),
-              );
-            }
-          }}
+          onBlur={(e) => setDescription(e.target.value.trim() || null)}
         />
       </div>
 
@@ -115,28 +373,24 @@ export function TemplateEditor({
                 className="h-8 max-w-[12rem] font-medium"
                 onBlur={(e) => {
                   const name = e.target.value.trim();
-                  if (name && name !== day.name) {
-                    run(() => renameTemplateDay({ dayId: day.id, name }));
-                  }
+                  if (name && name !== day.name) renameDay(day.id, name);
                 }}
               />
               <div className="flex gap-1">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={pending || day.exercises.length === 0}
-                  onClick={() =>
-                    startTransition(() => startWorkoutFromTemplateDay(day.id))
-                  }
+                  disabled={adding || day.exercises.length === 0}
+                  onClick={() => startAdding(() => startWorkoutFromTemplateDay(day.id))}
                 >
                   <Play className="size-4" /> Start workout
                 </Button>
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  disabled={pending || template.days.length === 1}
+                  disabled={template.days.length === 1}
                   aria-label="Remove day"
-                  onClick={() => run(() => removeTemplateDay(day.id))}
+                  onClick={() => removeDay(day.id)}
                 >
                   <Trash2 className="size-4" />
                 </Button>
@@ -155,8 +409,15 @@ export function TemplateEditor({
                   slot={te}
                   nextName={slotTitle(day.exercises[i + 1])}
                   catalog={catalog}
-                  disabled={pending}
-                  run={run}
+                  locked={adding}
+                  onSetExercise={(id) => setSlotExercise(te.id, id)}
+                  onRemove={() => removeSlot(te.id)}
+                  onDefaultReps={(r) => setDefaultReps(te.id, r)}
+                  onLink={(l) => setLink(te.id, l)}
+                  onAddSet={() => addSet(te.id)}
+                  onSetType={(setId, t) => setSetType(setId, t)}
+                  onSetReps={(setId, r) => setSetReps(setId, r)}
+                  onRemoveSet={(setId) => removeSet(te.id, setId)}
                 />
               ))
             )}
@@ -164,21 +425,17 @@ export function TemplateEditor({
             <div className="flex flex-wrap gap-2 pt-1">
               <ExercisePickerDialog
                 catalog={catalog}
-                onPick={(exerciseId) =>
-                  run(() => addTemplateExercise({ dayId: day.id, exerciseId }))
-                }
+                onPick={(exerciseId) => addSlot(day.id, { exerciseId })}
                 trigger={
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" disabled={adding}>
                     <Plus className="size-4" /> Add exercise
                   </Button>
                 }
               />
               <AddSlotDialog
-                onAdd={(slot) =>
-                  run(() => addTemplateExercise({ dayId: day.id, ...slot }))
-                }
+                onAdd={(slot) => addSlot(day.id, slot)}
                 trigger={
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" disabled={adding}>
                     <Plus className="size-4" /> Add slot
                   </Button>
                 }
@@ -189,21 +446,16 @@ export function TemplateEditor({
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() => run(() => addTemplateDay(template.id))}
-        >
+        <Button variant="outline" size="sm" disabled={adding} onClick={addDay}>
           <Plus className="size-4" /> Add day
         </Button>
         <Button
           variant="destructive"
           size="sm"
-          disabled={pending}
+          disabled={adding}
           onClick={() => {
             if (confirm(`Delete template "${template.name}"?`)) {
-              startTransition(() => deleteTemplate(template.id));
+              startAdding(() => deleteTemplate(template.id));
             }
           }}
         >
@@ -218,14 +470,28 @@ function SlotRow({
   slot: te,
   nextName,
   catalog,
-  disabled,
-  run,
+  locked,
+  onSetExercise,
+  onRemove,
+  onDefaultReps,
+  onLink,
+  onAddSet,
+  onSetType,
+  onSetReps,
+  onRemoveSet,
 }: {
   slot: Slot;
   nextName: string | null;
   catalog: PickerExercise[];
-  disabled: boolean;
-  run: (fn: () => Promise<unknown>) => void;
+  locked: boolean;
+  onSetExercise: (exerciseId: string | null) => void;
+  onRemove: () => void;
+  onDefaultReps: (targetReps: string | null) => void;
+  onLink: (link: ExerciseLink | null) => void;
+  onAddSet: () => void;
+  onSetType: (setId: string, type: SetType) => void;
+  onSetReps: (setId: string, targetReps: string | null) => void;
+  onRemoveSet: (setId: string) => void;
 }) {
   const link = te.linkToNext as ExerciseLink | null;
   return (
@@ -254,11 +520,9 @@ function SlotRow({
           lockMuscle={te.muscle}
           lockRole={te.role}
           title={te.exercise ? "Change exercise" : "Choose exercise"}
-          onPick={(exerciseId) =>
-            run(() => updateTemplateExercise({ id: te.id, exerciseId }))
-          }
+          onPick={(exerciseId) => onSetExercise(exerciseId)}
           trigger={
-            <Button variant="ghost" size="sm" disabled={disabled}>
+            <Button variant="ghost" size="sm">
               <Repeat2 className="size-3.5" />
               {te.exercise ? "Change" : "Choose"}
             </Button>
@@ -268,11 +532,8 @@ function SlotRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            disabled={disabled}
             aria-label="Clear exercise (keep the slot)"
-            onClick={() =>
-              run(() => updateTemplateExercise({ id: te.id, exerciseId: null }))
-            }
+            onClick={() => onSetExercise(null)}
           >
             <X className="size-4" />
           </Button>
@@ -280,9 +541,9 @@ function SlotRow({
         <Button
           size="icon-sm"
           variant="ghost"
-          disabled={disabled}
           aria-label="Remove slot"
-          onClick={() => run(() => removeTemplateExercise(te.id))}
+          disabled={locked}
+          onClick={onRemove}
         >
           <Trash2 className="size-4" />
         </Button>
@@ -297,10 +558,8 @@ function SlotRow({
             maxLength={20}
             className="h-7 w-20"
             onBlur={(e) => {
-              const targetReps = e.target.value.trim() || null;
-              if (targetReps !== te.targetReps) {
-                run(() => updateTemplateExercise({ id: te.id, targetReps }));
-              }
+              const next = e.target.value.trim() || null;
+              if (next !== (te.targetReps ?? null)) onDefaultReps(next);
             }}
           />
         </label>
@@ -318,17 +577,18 @@ function SlotRow({
               set={ts}
               number={i + 1}
               defaultReps={te.targetReps}
-              disabled={disabled}
-              canRemove={te.sets.length > 1}
-              run={run}
+              canRemove={te.sets.length > 1 && !locked}
+              onType={(t) => onSetType(ts.id, t)}
+              onReps={(r) => onSetReps(ts.id, r)}
+              onRemove={() => onRemoveSet(ts.id)}
             />
           ))}
           <Button
             variant="ghost"
             size="sm"
             className="w-fit"
-            disabled={disabled}
-            onClick={() => run(() => addTemplateSet(te.id))}
+            disabled={locked}
+            onClick={onAddSet}
           >
             <Plus className="size-3.5" /> Add set
           </Button>
@@ -336,14 +596,7 @@ function SlotRow({
 
         <Select
           value={link ?? "none"}
-          onValueChange={(v) =>
-            run(() =>
-              updateTemplateExercise({
-                id: te.id,
-                linkToNext: v === "none" ? null : (v as ExerciseLink),
-              }),
-            )
-          }
+          onValueChange={(v) => onLink(v === "none" ? null : (v as ExerciseLink))}
         >
           <SelectTrigger
             size="sm"
@@ -382,32 +635,27 @@ function SlotRow({
   );
 }
 
-type PlannedSet = Slot["sets"][number];
-
 function TemplateSetRow({
   set: ts,
   number,
   defaultReps,
-  disabled,
   canRemove,
-  run,
+  onType,
+  onReps,
+  onRemove,
 }: {
   set: PlannedSet;
   number: number;
   defaultReps: string | null;
-  disabled: boolean;
   canRemove: boolean;
-  run: (fn: () => Promise<unknown>) => void;
+  onType: (type: SetType) => void;
+  onReps: (targetReps: string | null) => void;
+  onRemove: () => void;
 }) {
   return (
     <div className="grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2">
       <span className="text-muted-foreground text-xs tabular-nums">{number}</span>
-      <Select
-        value={ts.type}
-        onValueChange={(v) =>
-          run(() => updateTemplateSet({ id: ts.id, type: v as SetType }))
-        }
-      >
+      <Select value={ts.type} onValueChange={(v) => onType(v as SetType)}>
         <SelectTrigger size="sm" className="w-full" aria-label="Set type">
           <SelectValue>{SET_TYPE_SHORT[ts.type]}</SelectValue>
         </SelectTrigger>
@@ -424,20 +672,17 @@ function TemplateSetRow({
         placeholder={defaultReps ?? "8-12"}
         maxLength={20}
         className="h-8"
-        disabled={disabled}
         onBlur={(e) => {
-          const targetReps = e.target.value.trim() || null;
-          if (targetReps !== (ts.targetReps ?? null)) {
-            run(() => updateTemplateSet({ id: ts.id, targetReps }));
-          }
+          const next = e.target.value.trim() || null;
+          if (next !== (ts.targetReps ?? null)) onReps(next);
         }}
       />
       <Button
         variant="ghost"
         size="icon-sm"
-        disabled={disabled || !canRemove}
+        disabled={!canRemove}
         aria-label="Remove set"
-        onClick={() => run(() => removeTemplateSet(ts.id))}
+        onClick={onRemove}
       >
         <Trash2 className="size-3.5" />
       </Button>
