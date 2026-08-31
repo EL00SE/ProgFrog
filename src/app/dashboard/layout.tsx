@@ -5,7 +5,6 @@ import { DashboardNav, DashboardTabBar } from "@/components/dashboard-nav";
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { ChatWidget } from "@/components/chat/chat-widget";
 import { PageTransition } from "@/components/page-transition";
-import { SwipeNav } from "@/components/swipe-nav";
 import { RestTimer } from "@/components/workout/rest-timer";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -19,11 +18,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       <SiteHeader />
       <DashboardNav />
       <ActiveWorkoutBar />
-      <SwipeNav>
-        <main className="mx-auto w-full max-w-5xl flex-1 overscroll-x-contain px-4 pt-6 pb-28 sm:px-6 md:py-8">
-          <PageTransition>{children}</PageTransition>
-        </main>
-      </SwipeNav>
+      <main className="mx-auto w-full max-w-5xl flex-1 overflow-x-clip overscroll-x-contain px-4 pt-6 pb-28 sm:px-6 md:py-8">
+        <PageTransition>{children}</PageTransition>
+      </main>
       <DashboardTabBar />
       <RestTimer />
       {assistantEnabled ? <ChatWidget consented={!!user?.chatConsentAt} /> : null}
