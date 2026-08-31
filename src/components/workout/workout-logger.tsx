@@ -18,6 +18,7 @@ import {
   EQUIPMENT_LABELS,
   epley1RM,
   type ExerciseLink,
+  formatDate,
   formatWeight,
   groupLinkedExercises,
   isWorkingSet,
@@ -64,9 +65,23 @@ import {
 } from "@/components/workout/exercise-picker-dialog";
 import { getDefaultRest, restEvent } from "@/components/workout/rest-timer";
 import { WheelField } from "@/components/workout/wheel-field";
+import type { ExercisePrev } from "@/lib/queries/history";
 
 type WE = FullWorkout["exercises"][number];
 type SetEntry = WE["sets"][number];
+type PrevMap = Record<string, ExercisePrev>;
+
+/** "Aug 21 — 60×8, 60×8, 55×6 kg" from a previous session. */
+function formatPrev(prev: ExercisePrev, unit: "KG" | "LB", timed: boolean): string {
+  const shown = prev.sets.slice(0, 5);
+  const parts = shown.map((s) =>
+    timed ? `${s.seconds ?? 0}s` : `${s.weight}×${s.reps}`,
+  );
+  const more = prev.sets.length - shown.length;
+  return `${formatDate(prev.date, { month: "short", day: "numeric" })} — ${parts.join(
+    ", ",
+  )}${more > 0 ? ` +${more}` : ""}${timed ? "" : ` ${unit.toLowerCase()}`}`;
+}
 
 function loggedSetCount(we: WE) {
   const timed = we.exercise?.isTimed ?? false;
@@ -84,9 +99,11 @@ function isExerciseDone(we: WE) {
 export function WorkoutLogger({
   workout,
   catalog,
+  prev,
 }: {
   workout: FullWorkout;
   catalog: PickerExercise[];
+  prev: PrevMap;
 }) {
   const [exercises, setExercises] = React.useState<WE[]>(workout.exercises);
   const [pending, startTransition] = React.useTransition();
@@ -240,6 +257,8 @@ export function WorkoutLogger({
           unit,
           disabled: pending,
           catalog,
+          prev,
+          prevForExercise: we.exercise ? prev[we.exercise.id] : undefined,
           onRemove: () => handleRemoveExercise(we.id),
           onAddSet: () => handleAddSet(we.id),
           onAddDropSet: () => handleAddSet(we.id, { type: "DROP" }),
@@ -291,6 +310,7 @@ export function WorkoutLogger({
       <div className="flex flex-col gap-2 sm:flex-row">
         <ExercisePickerDialog
           catalog={catalog}
+          history={prev}
           onPick={handlePick}
           trigger={
             <Button variant="outline" className="w-full sm:flex-1" disabled={pending}>
@@ -356,6 +376,8 @@ function ExerciseCard({
   unit,
   disabled,
   catalog,
+  prev,
+  prevForExercise,
   inGroup = false,
   onRemove,
   onAddSet,
@@ -373,6 +395,8 @@ function ExerciseCard({
   unit: "KG" | "LB";
   disabled: boolean;
   catalog: PickerExercise[];
+  prev: PrevMap;
+  prevForExercise?: ExercisePrev;
   inGroup?: boolean;
   onRemove: () => void;
   onAddSet: () => void;
@@ -434,6 +458,11 @@ function ExerciseCard({
                 Exercise {index + 1} of {total}
               </p>
             )}
+            {prevForExercise ? (
+              <p className="text-muted-foreground/80 mt-0.5 text-xs">
+                Last time: {formatPrev(prevForExercise, unit, timed)}
+              </p>
+            ) : null}
           </div>
           <Button
             variant="ghost"
@@ -449,6 +478,7 @@ function ExerciseCard({
         {unfilled ? (
           <ExercisePickerDialog
             catalog={catalog}
+            history={prev}
             lockMuscle={we.muscle}
             lockRole={we.role}
             title="Choose exercise"
@@ -504,6 +534,7 @@ function ExerciseCard({
             {(we.muscle || we.role) && (
               <ExercisePickerDialog
                 catalog={catalog}
+                history={prev}
                 lockMuscle={we.muscle}
                 lockRole={we.role}
                 title="Swap exercise"

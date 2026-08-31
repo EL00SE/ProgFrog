@@ -52,7 +52,7 @@ const CATALOG: CatalogEntry[] = [
   x("Deadlift", "Back", "BARBELL", "MAIN"),
   x("Barbell Row", "Back", "BARBELL", "MAIN"),
   x("Pendlay Row", "Back", "BARBELL", "MAIN"),
-  x("T-Bar Row", "Back", "MACHINE", "SECONDARY"),
+  x("T-Bar Row", "Back", "MACHINE", "MAIN"),
   x("Rack Pull", "Back", "BARBELL", "SECONDARY"),
   x("Meadows Row", "Back", "BARBELL", "SECONDARY"),
   x("Pull-up", "Back", "BODYWEIGHT", "MAIN"),

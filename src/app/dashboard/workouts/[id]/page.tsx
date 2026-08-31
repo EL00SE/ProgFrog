@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUserId } from "@/lib/dal";
 import { formatDate } from "@/lib/training";
 import { getExerciseCatalog } from "@/lib/queries/exercises";
+import { getExercisePrev } from "@/lib/queries/history";
 import { getWorkout } from "@/lib/queries/workouts";
 import { BackLink } from "@/components/back-link";
 import { WorkoutLogger } from "@/components/workout/workout-logger";
@@ -32,7 +33,10 @@ export default async function WorkoutPage({
     return <FinishedWorkoutView workout={workout} title={title} dateLabel={dateLabel} />;
   }
 
-  const catalog = await getExerciseCatalog(userId);
+  const [catalog, prev] = await Promise.all([
+    getExerciseCatalog(userId),
+    getExercisePrev(userId, workout.unit),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -43,6 +47,7 @@ export default async function WorkoutPage({
       </div>
       <WorkoutLogger
         workout={workout}
+        prev={prev}
         catalog={catalog.map((e) => ({
           id: e.id,
           name: e.name,

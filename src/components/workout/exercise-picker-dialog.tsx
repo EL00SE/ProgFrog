@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   EQUIPMENT_LABELS,
+  formatDate,
   MUSCLE_GROUPS,
   ROLE_LABELS,
   ROLE_ORDER,
@@ -42,6 +43,7 @@ export type PickerExercise = {
 
 export function ExercisePickerDialog({
   catalog,
+  history,
   onPick,
   trigger,
   lockMuscle,
@@ -49,6 +51,8 @@ export function ExercisePickerDialog({
   title = "Add exercise",
 }: {
   catalog: PickerExercise[];
+  /** last-done date per exercise id — surfaces recents and dates in the list */
+  history?: Record<string, { date: string }>;
   /** `exercise` is passed when it was just created, so callers can show it
    *  without waiting for a refetched catalog. */
   onPick: (exerciseId: string, exercise?: PickerExercise) => void | Promise<void>;
@@ -57,6 +61,8 @@ export function ExercisePickerDialog({
   lockRole?: string | null;
   title?: string;
 }) {
+  const hist = history ?? {};
+  const lastDone = (id: string) => hist[id]?.date ?? null;
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
@@ -68,7 +74,7 @@ export function ExercisePickerDialog({
 
   const locked = !showAll && (lockMuscle || lockRole);
 
-  const filtered = React.useMemo(() => {
+  const inScope = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = catalog;
     if (locked) {
@@ -82,8 +88,23 @@ export function ExercisePickerDialog({
         (e) => e.name.toLowerCase().includes(q) || e.muscle?.toLowerCase().includes(q),
       );
     }
+    return list;
+  }, [catalog, query, locked, lockMuscle, lockRole]);
+
+  // Exercises the user has done, most recent first — shown up top.
+  const recent = React.useMemo(
+    () =>
+      inScope
+        .filter((e) => lastDone(e.id))
+        .sort((a, b) => (lastDone(b.id)! < lastDone(a.id)! ? -1 : 1))
+        .slice(0, 8),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inScope, history],
+  );
+
+  const filtered = React.useMemo(() => {
     const groups = new Map<string, PickerExercise[]>();
-    for (const e of list) {
+    for (const e of inScope) {
       const key = e.muscle ?? "Other";
       groups.set(key, [...(groups.get(key) ?? []), e]);
     }
@@ -93,14 +114,22 @@ export function ExercisePickerDialog({
         ([m, items]) =>
           [
             m,
-            [...items].sort(
-              (a, b) =>
+            [...items].sort((a, b) => {
+              // done exercises first (most recent), then by role, then name
+              const da = lastDone(a.id);
+              const db = lastDone(b.id);
+              if (da && db) return db < da ? -1 : 1;
+              if (da) return -1;
+              if (db) return 1;
+              return (
                 (ROLE_ORDER[a.role ?? ""] ?? 9) - (ROLE_ORDER[b.role ?? ""] ?? 9) ||
-                a.name.localeCompare(b.name),
-            ),
+                a.name.localeCompare(b.name)
+              );
+            }),
           ] as const,
       );
-  }, [catalog, query, locked, lockMuscle, lockRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inScope, history]);
 
   const exactMatch = catalog.some(
     (e) => e.name.toLowerCase() === query.trim().toLowerCase(),
@@ -263,25 +292,33 @@ export function ExercisePickerDialog({
                   Create &ldquo;{query.trim()}&rdquo;
                 </button>
               )}
+              {!query.trim() && recent.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-muted-foreground px-2 py-1 text-xs font-medium tracking-wide uppercase">
+                    Recent
+                  </p>
+                  {recent.map((e) => (
+                    <ExerciseRow
+                      key={`recent-${e.id}`}
+                      e={e}
+                      lastDone={lastDone(e.id)}
+                      onPick={() => pick(e.id, e)}
+                    />
+                  ))}
+                </div>
+              )}
               {filtered.map(([muscle, items]) => (
                 <div key={muscle} className="mb-2">
                   <p className="text-muted-foreground px-2 py-1 text-xs font-medium tracking-wide uppercase">
                     {muscle}
                   </p>
                   {items.map((e) => (
-                    <button
+                    <ExerciseRow
                       key={e.id}
-                      type="button"
-                      onClick={() => pick(e.id, e)}
-                      className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm"
-                    >
-                      <span className="truncate">{e.name}</span>
-                      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-                        {e.role ? <span>{roleShort(e.role)}</span> : null}
-                        <span>·</span>
-                        <span>{EQUIPMENT_LABELS[e.equipment]}</span>
-                      </span>
-                    </button>
+                      e={e}
+                      lastDone={lastDone(e.id)}
+                      onPick={() => pick(e.id, e)}
+                    />
                   ))}
                 </div>
               ))}
@@ -299,5 +336,37 @@ export function ExercisePickerDialog({
         </DialogContent>
       ) : null}
     </Dialog>
+  );
+}
+
+function ExerciseRow({
+  e,
+  lastDone,
+  onPick,
+}: {
+  e: PickerExercise;
+  lastDone: string | null;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm"
+    >
+      <span className="min-w-0">
+        <span className="block truncate">{e.name}</span>
+        {lastDone ? (
+          <span className="text-muted-foreground text-xs">
+            done {formatDate(lastDone, { month: "short", day: "numeric" })}
+          </span>
+        ) : null}
+      </span>
+      <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+        {e.role ? <span>{roleShort(e.role)}</span> : null}
+        <span>·</span>
+        <span>{EQUIPMENT_LABELS[e.equipment]}</span>
+      </span>
+    </button>
   );
 }
