@@ -155,7 +155,6 @@ function optimisticWE(
           id: ex.id,
           name: ex.name,
           equipment: ex.equipment,
-          muscle: ex.muscle,
           isTimed: ex.isTimed ?? false,
         }
       : null,
@@ -270,7 +269,6 @@ export function WorkoutLogger({
                     id: exercise.id,
                     name: exercise.name,
                     equipment: exercise.equipment,
-                    muscle: exercise.muscle,
                     isTimed: exercise.isTimed ?? false,
                   } as WE["exercise"])
                 : e.exercise,

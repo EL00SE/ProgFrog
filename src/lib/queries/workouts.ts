@@ -17,7 +17,10 @@ const workoutInclude = {
   exercises: {
     orderBy: { order: "asc" },
     include: {
-      exercise: true,
+      // Only the fields the logger / history / summary actually read.
+      exercise: {
+        select: { id: true, name: true, equipment: true, isTimed: true },
+      },
       sets: { orderBy: { order: "asc" } },
     },
   },
