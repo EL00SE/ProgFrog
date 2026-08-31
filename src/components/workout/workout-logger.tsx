@@ -1,14 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Check,
   ChevronDown,
   ChevronsDown,
   ChevronUp,
+  CloudOff,
   Link2,
   Play,
   Plus,
+  RefreshCw,
   Repeat2,
   Square,
   Timer,
@@ -38,18 +41,13 @@ import {
 import type { FullWorkout } from "@/lib/queries/workouts";
 import {
   addExerciseToWorkout,
-  addSet,
   addSlotToWorkout,
   assignWorkoutEntryExercise,
-  deleteSet,
   deleteWorkout,
   finishWorkout,
-  removeWorkoutExercise,
-  reorderWorkoutExercises,
-  updateSet,
-  updateWorkoutExercise,
 } from "@/lib/actions/workouts";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { outbox, useOutboxStatus } from "@/lib/offline-queue";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,6 +98,60 @@ function isExerciseDone(we: WE) {
   return we.targetSets ? done >= we.targetSets : done > 0;
 }
 
+// --- offline snapshot + optimistic set seeding ----------------------------
+
+const SNAP_PREFIX = "progfrog:wsnap:";
+const SNAP_TTL = 24 * 60 * 60 * 1000;
+
+function loadSnapshot(workoutId: string, fallback: WE[]): WE[] {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(SNAP_PREFIX + workoutId);
+    if (!raw) return fallback;
+    const snap = JSON.parse(raw) as { at: number; exercises: WE[] };
+    // Only trust it while there's unsynced work (or we're offline) and it's fresh.
+    const useful = outbox.pending() > 0 || !navigator.onLine;
+    if (useful && Date.now() - snap.at < SNAP_TTL) return snap.exercises;
+  } catch {
+    /* ignore corrupt snapshot */
+  }
+  return fallback;
+}
+
+function saveSnapshot(workoutId: string, exercises: WE[]) {
+  try {
+    localStorage.setItem(
+      SNAP_PREFIX + workoutId,
+      JSON.stringify({ at: Date.now(), exercises }),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function clearSnapshot(workoutId: string) {
+  try {
+    localStorage.removeItem(SNAP_PREFIX + workoutId);
+  } catch {
+    /* ignore */
+  }
+}
+
+let tmpSeq = 0;
+const tmpSetId = () => `local_${Date.now().toString(36)}_${tmpSeq++}`;
+
+/** What a fresh set should start at — matches the server's addSet() seeding. */
+function seedSet(we: WE, type: SetType, prev: PrevMap): { weight: number; reps: number } {
+  const last = we.sets.at(-1);
+  const fromPrev = we.exercise ? prev[we.exercise.id]?.sets[0] : undefined;
+  let weight = last?.weight ?? fromPrev?.weight ?? 0;
+  const reps = last?.reps ?? fromPrev?.reps ?? 0;
+  if (type === "DROP" && weight > 0) {
+    weight = Math.max(0, Math.round(weight * 0.8 * 2) / 2);
+  }
+  return { weight, reps };
+}
+
 export function WorkoutLogger({
   workout,
   catalog,
@@ -109,9 +161,33 @@ export function WorkoutLogger({
   catalog: PickerExercise[];
   prev: PrevMap;
 }) {
-  const [exercises, setExercises] = React.useState<WE[]>(workout.exercises);
-  const [pending, startTransition] = React.useTransition();
+  const router = useRouter();
+  const { online, pending: syncPending } = useOutboxStatus();
+  const [exercises, setExercises] = React.useState<WE[]>(() =>
+    loadSnapshot(workout.id, workout.exercises),
+  );
+  const [busy, startTransition] = React.useTransition();
   const unit = workout.unit;
+
+  // Persist local state so a reload (from the cached page, offline) keeps edits.
+  React.useEffect(() => {
+    const t = setTimeout(() => saveSnapshot(workout.id, exercises), 600);
+    return () => clearTimeout(t);
+  }, [workout.id, exercises]);
+
+  // When a queued "add set" finally syncs, swap its temp id for the real one.
+  React.useEffect(
+    () =>
+      outbox.onSwap((tempId, realId) =>
+        setExercises((list) =>
+          list.map((e) => ({
+            ...e,
+            sets: e.sets.map((s) => (s.id === tempId ? { ...s, id: realId } : s)),
+          })),
+        ),
+      ),
+    [],
+  );
 
   function patchExercise(id: string, patch: Partial<WE>) {
     setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -129,20 +205,28 @@ export function WorkoutLogger({
     );
   }
 
+  // Adding / swapping an exercise still needs a connection (the picker isn't
+  // usable offline anyway) — set logging below works with no network.
+  function requireOnline(): boolean {
+    if (online) return true;
+    toast.error("Reconnect to change exercises — your sets are still being saved.");
+    return false;
+  }
+
   async function handlePick(exerciseId: string) {
-    const created = await addExerciseToWorkout({
-      workoutId: workout.id,
-      exerciseId,
-    });
+    if (!requireOnline()) return;
+    const created = await addExerciseToWorkout({ workoutId: workout.id, exerciseId });
     setExercises((prev) => [...prev, created as WE]);
   }
 
   async function handleAddSlot(slot: { muscle: string; role: string }) {
+    if (!requireOnline()) return;
     const created = await addSlotToWorkout({ workoutId: workout.id, ...slot });
     setExercises((prev) => [...prev, created as WE]);
   }
 
   async function handleAssign(weId: string, exerciseId: string) {
+    if (!requireOnline()) return;
     const updated = await assignWorkoutEntryExercise({
       workoutExerciseId: weId,
       exerciseId,
@@ -152,20 +236,30 @@ export function WorkoutLogger({
 
   function handleRemoveExercise(weId: string) {
     setExercises((prev) => prev.filter((e) => e.id !== weId));
-    startTransition(async () => {
-      await removeWorkoutExercise(weId);
-    });
+    outbox.removeWorkoutExercise(weId);
   }
 
   function handleAddSet(weId: string, opts?: { type?: SetType }) {
-    startTransition(async () => {
-      const created = await addSet(weId, opts);
-      setExercises((prev) =>
-        prev.map((e) =>
-          e.id === weId ? { ...e, sets: [...e.sets, created as SetEntry] } : e,
-        ),
-      );
-    });
+    const we = exercises.find((e) => e.id === weId);
+    if (!we) return;
+    const type = opts?.type ?? "NORMAL";
+    const seed = seedSet(we, type, prev);
+    const tempId = tmpSetId();
+    const optimistic = {
+      id: tempId,
+      workoutExerciseId: weId,
+      order: (we.sets.at(-1)?.order ?? -1) + 1,
+      type,
+      targetReps: we.targetReps ?? null,
+      reps: seed.reps,
+      seconds: null,
+      weight: seed.weight,
+      rpe: null,
+    } as SetEntry;
+    setExercises((list) =>
+      list.map((e) => (e.id === weId ? { ...e, sets: [...e.sets, optimistic] } : e)),
+    );
+    outbox.addSet(tempId, { workoutExerciseId: weId, type });
   }
 
   function handleMoveExercise(weId: string, dir: -1 | 1) {
@@ -175,10 +269,10 @@ export function WorkoutLogger({
     const next = [...exercises];
     [next[i], next[j]] = [next[j], next[i]];
     setExercises(next);
-    reorderWorkoutExercises({
+    outbox.reorderWorkoutExercises({
       workoutId: workout.id,
       orderedIds: next.map((e) => e.id),
-    }).catch(() => toast.error("Couldn't save the new order"));
+    });
   }
 
   function handleDeleteSet(weId: string, setId: string) {
@@ -187,32 +281,30 @@ export function WorkoutLogger({
         e.id === weId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e,
       ),
     );
-    startTransition(async () => {
-      await deleteSet(setId);
-    });
+    outbox.deleteSet(setId);
   }
 
-  // Autosave is silent: no transition (so nothing gets disabled and the mobile
-  // keyboard is never dismissed mid-type) and errors just surface a toast.
+  // Autosave: apply locally (done by the caller), queue for the server. The queue
+  // retries on its own, so no toast on a transient failure.
   function saveSet(setId: string, patch: Partial<SetEntry>) {
-    updateSet({
+    outbox.updateSet({
       setId,
       type: patch.type ?? undefined,
       reps: patch.reps,
       seconds: patch.seconds,
       weight: patch.weight,
-    }).catch(() => toast.error("Couldn't save that set"));
+    });
   }
 
   function saveExercise(
     weId: string,
     patch: { equipment?: string | null; linkToNext?: ExerciseLink | null },
   ) {
-    updateWorkoutExercise({
+    outbox.updateWorkoutExercise({
       workoutExerciseId: weId,
       equipment: patch.equipment as never,
       linkToNext: patch.linkToNext,
-    }).catch(() => toast.error("Couldn't save that change"));
+    });
   }
 
   function handleFinish() {
@@ -220,13 +312,33 @@ export function WorkoutLogger({
       toast.error("Add at least one exercise first");
       return;
     }
-    startTransition(() => finishWorkout(workout.id));
+    if (online && syncPending === 0) {
+      clearSnapshot(workout.id);
+      startTransition(() => finishWorkout(workout.id));
+      return;
+    }
+    // Offline, or set writes still pending — queue the finish behind them.
+    outbox.finishWorkout(workout.id);
+    toast.success(
+      online
+        ? "Finishing up — syncing your sets…"
+        : "Saved. It'll finish syncing when you're back online.",
+    );
+    clearSnapshot(workout.id);
+    router.push("/dashboard");
   }
 
   function handleDiscard() {
     if (!confirm("Discard this workout and everything logged in it?")) return;
+    if (!online) {
+      toast.error("Reconnect to discard this workout.");
+      return;
+    }
+    clearSnapshot(workout.id);
     startTransition(() => deleteWorkout(workout.id));
   }
+
+  const pending = busy;
 
   const working = exercises.flatMap((e) => e.sets.filter(isWorkingSet));
   const totalSets = working.length;
@@ -235,6 +347,28 @@ export function WorkoutLogger({
 
   return (
     <div className="flex flex-col gap-4">
+      {(!online || syncPending > 0) && (
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+            online
+              ? "border-primary/30 bg-primary/5 text-primary"
+              : "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400",
+          )}
+        >
+          {online ? (
+            <RefreshCw className="size-4 shrink-0 animate-spin" />
+          ) : (
+            <CloudOff className="size-4 shrink-0" />
+          )}
+          <span>
+            {online
+              ? `Syncing ${syncPending} change${syncPending === 1 ? "" : "s"}…`
+              : "Offline — your sets are saved on this device and will sync when you reconnect."}
+          </span>
+        </div>
+      )}
+
       <div className="bg-muted/40 grid grid-cols-3 gap-2 rounded-xl border p-3 text-center">
         <SummaryStat label="Exercises" value={String(exercises.length)} />
         <SummaryStat label="Sets" value={String(totalSets)} />

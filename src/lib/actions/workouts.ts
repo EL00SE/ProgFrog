@@ -194,7 +194,9 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
   redirect(`/dashboard/workouts/${workout.id}`);
 }
 
-export async function finishWorkout(workoutId: string) {
+/** The DB side of finishing, without the redirect — safe to replay from the
+ *  offline outbox after a run of queued set writes. */
+export async function syncFinishWorkout(workoutId: string) {
   const userId = await getCurrentUserId();
   await assertOwnWorkout(userId, workoutId);
 
@@ -215,6 +217,11 @@ export async function finishWorkout(workoutId: string) {
   });
 
   revalidateWorkoutViews(workoutId);
+  return { ok: true as const };
+}
+
+export async function finishWorkout(workoutId: string) {
+  await syncFinishWorkout(workoutId);
   redirect("/dashboard");
 }
 
