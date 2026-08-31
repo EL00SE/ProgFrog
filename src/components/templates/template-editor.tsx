@@ -3,7 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronsDown, Play, Plus, Repeat2, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsDown,
+  ChevronUp,
+  Play,
+  Plus,
+  Repeat2,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   EQUIPMENT_LABELS,
@@ -28,6 +37,8 @@ import {
   removeTemplateExercise,
   removeTemplateSet,
   renameTemplateDay,
+  reorderTemplateDays,
+  reorderTemplateExercises,
   updateTemplate,
   updateTemplateExercise,
   updateTemplateSet,
@@ -214,6 +225,17 @@ export function TemplateEditor({
     setTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== dayId) }));
     persist(() => removeTemplateDay(dayId));
   }
+  function moveDay(dayId: string, dir: -1 | 1) {
+    const i = template.days.findIndex((d) => d.id === dayId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= template.days.length) return;
+    const days = [...template.days];
+    [days[i], days[j]] = [days[j], days[i]];
+    setTemplate((t) => ({ ...t, days }));
+    persist(() =>
+      reorderTemplateDays({ templateId: template.id, dayIds: days.map((d) => d.id) }),
+    );
+  }
 
   // --- slots ----------------------------------------------------------
   function addSlot(
@@ -292,6 +314,19 @@ export function TemplateEditor({
     }));
     persist(() => removeTemplateExercise(slotId));
   }
+  function moveSlot(dayId: string, slotId: string, dir: -1 | 1) {
+    const day = template.days.find((d) => d.id === dayId);
+    if (!day) return;
+    const i = day.exercises.findIndex((e) => e.id === slotId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= day.exercises.length) return;
+    const exercises = [...day.exercises];
+    [exercises[i], exercises[j]] = [exercises[j], exercises[i]];
+    editDay(dayId, (d) => ({ ...d, exercises }));
+    persist(() =>
+      reorderTemplateExercises({ dayId, exerciseIds: exercises.map((e) => e.id) }),
+    );
+  }
   function setDefaultReps(slotId: string, targetReps: string | null) {
     editSlot(slotId, (s) => ({ ...s, targetReps }));
     persistFor(slotId, (id) => updateTemplateExercise({ id, targetReps }));
@@ -363,19 +398,31 @@ export function TemplateEditor({
         />
       </div>
 
-      {template.days.map((day) => (
+      {template.days.map((day, di) => (
         <Card key={day.id}>
           <CardHeader className="gap-2">
             <div className="flex items-center justify-between gap-2">
-              <Input
-                defaultValue={day.name}
-                maxLength={40}
-                className="h-8 max-w-[12rem] font-medium"
-                onBlur={(e) => {
-                  const name = e.target.value.trim();
-                  if (name && name !== day.name) renameDay(day.id, name);
-                }}
-              />
+              <div className="flex min-w-0 items-center gap-1">
+                {template.days.length > 1 ? (
+                  <MoveButtons
+                    disabled={adding}
+                    canUp={di > 0}
+                    canDown={di < template.days.length - 1}
+                    onUp={() => moveDay(day.id, -1)}
+                    onDown={() => moveDay(day.id, 1)}
+                    label="day"
+                  />
+                ) : null}
+                <Input
+                  defaultValue={day.name}
+                  maxLength={40}
+                  className="h-8 max-w-[12rem] font-medium"
+                  onBlur={(e) => {
+                    const name = e.target.value.trim();
+                    if (name && name !== day.name) renameDay(day.id, name);
+                  }}
+                />
+              </div>
               <div className="flex gap-1">
                 <Button
                   size="sm"
@@ -410,6 +457,10 @@ export function TemplateEditor({
                   nextName={slotTitle(day.exercises[i + 1])}
                   catalog={catalog}
                   locked={adding}
+                  canUp={i > 0}
+                  canDown={i < day.exercises.length - 1}
+                  onMoveUp={() => moveSlot(day.id, te.id, -1)}
+                  onMoveDown={() => moveSlot(day.id, te.id, 1)}
                   onSetExercise={(id) => setSlotExercise(te.id, id)}
                   onRemove={() => removeSlot(te.id)}
                   onDefaultReps={(r) => setDefaultReps(te.id, r)}
@@ -466,11 +517,57 @@ export function TemplateEditor({
   );
 }
 
+/** Stacked up/down reorder control (tap-based — no drag needed on mobile). */
+function MoveButtons({
+  disabled,
+  canUp,
+  canDown,
+  onUp,
+  onDown,
+  label,
+}: {
+  disabled: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onUp: () => void;
+  onDown: () => void;
+  label: string;
+}) {
+  return (
+    <div className="flex shrink-0 flex-col">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="h-4"
+        disabled={disabled || !canUp}
+        aria-label={`Move ${label} up`}
+        onClick={onUp}
+      >
+        <ChevronUp className="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="h-4"
+        disabled={disabled || !canDown}
+        aria-label={`Move ${label} down`}
+        onClick={onDown}
+      >
+        <ChevronDown className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function SlotRow({
   slot: te,
   nextName,
   catalog,
   locked,
+  canUp,
+  canDown,
+  onMoveUp,
+  onMoveDown,
   onSetExercise,
   onRemove,
   onDefaultReps,
@@ -484,6 +581,10 @@ function SlotRow({
   nextName: string | null;
   catalog: PickerExercise[];
   locked: boolean;
+  canUp: boolean;
+  canDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onSetExercise: (exerciseId: string | null) => void;
   onRemove: () => void;
   onDefaultReps: (targetReps: string | null) => void;
@@ -502,6 +603,14 @@ function SlotRow({
       }
     >
       <div className="flex flex-wrap items-center gap-2">
+        <MoveButtons
+          disabled={locked}
+          canUp={canUp}
+          canDown={canDown}
+          onUp={onMoveUp}
+          onDown={onMoveDown}
+          label="exercise"
+        />
         <div className="min-w-[8rem] flex-1">
           <p className="text-sm font-medium">
             {te.exercise?.name ?? roleLabel(te.muscle, te.role)}

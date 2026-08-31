@@ -139,6 +139,35 @@ export async function addTemplateDay(templateId: string) {
   return day;
 }
 
+const reorderDaysSchema = z.object({
+  templateId: z.string().min(1),
+  dayIds: z.array(z.string().min(1)).min(1).max(60),
+});
+
+/** Persist a new day order (ids given in the desired order). */
+export async function reorderTemplateDays(input: z.infer<typeof reorderDaysSchema>) {
+  const userId = await getCurrentUserId();
+  const { templateId, dayIds } = reorderDaysSchema.parse(input);
+  await assertOwnTemplate(userId, templateId);
+
+  const owned = new Set(
+    (
+      await prisma.templateDay.findMany({
+        where: { templateId },
+        select: { id: true },
+      })
+    ).map((d) => d.id),
+  );
+  const ordered = dayIds.filter((id) => owned.has(id));
+  await prisma.$transaction(
+    ordered.map((id, i) =>
+      prisma.templateDay.update({ where: { id }, data: { order: i } }),
+    ),
+  );
+  revalidateTemplateViews(templateId);
+  return { ok: true as const };
+}
+
 const renameDaySchema = z.object({
   dayId: z.string().min(1),
   name: z.string().trim().min(1).max(40),
@@ -276,6 +305,37 @@ export async function removeTemplateExercise(id: string) {
   const userId = await getCurrentUserId();
   const templateId = await assertOwnTemplateExercise(userId, id);
   await prisma.templateExercise.delete({ where: { id } });
+  revalidateTemplateViews(templateId);
+  return { ok: true as const };
+}
+
+const reorderExercisesSchema = z.object({
+  dayId: z.string().min(1),
+  exerciseIds: z.array(z.string().min(1)).min(1).max(60),
+});
+
+/** Persist a new exercise order within one day. */
+export async function reorderTemplateExercises(
+  input: z.infer<typeof reorderExercisesSchema>,
+) {
+  const userId = await getCurrentUserId();
+  const { dayId, exerciseIds } = reorderExercisesSchema.parse(input);
+  const templateId = await assertOwnDay(userId, dayId);
+
+  const owned = new Set(
+    (
+      await prisma.templateExercise.findMany({
+        where: { templateDayId: dayId },
+        select: { id: true },
+      })
+    ).map((e) => e.id),
+  );
+  const ordered = exerciseIds.filter((id) => owned.has(id));
+  await prisma.$transaction(
+    ordered.map((id, i) =>
+      prisma.templateExercise.update({ where: { id }, data: { order: i } }),
+    ),
+  );
   revalidateTemplateViews(templateId);
   return { ok: true as const };
 }
