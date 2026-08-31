@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { ChevronsDown, Link2, Pencil, Trash2 } from "lucide-react";
 
 import {
   EQUIPMENT_LABELS,
   epley1RM,
+  type ExerciseLink,
   formatWeight,
+  groupLinkedExercises,
+  LINK_HINTS,
+  LINK_LABELS,
+  linkedGroupLabel,
   roleLabel,
   roleShort,
   topSet,
@@ -16,9 +21,10 @@ import { deleteWorkout, reopenWorkout } from "@/lib/actions/workouts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { BackLink } from "@/components/back-link";
 
-const GROUP_LETTERS = ["A", "B", "C", "D", "E", "F"];
+type WE = FullWorkout["exercises"][number];
 
 export function FinishedWorkoutView({
   workout,
@@ -77,89 +83,122 @@ export function FinishedWorkoutView({
         </p>
       ) : null}
 
-      {workout.exercises.map((we) => {
-        const timed = we.exercise?.isTimed ?? false;
-        const best = timed
-          ? 0
-          : we.sets.reduce((m, s) => Math.max(m, epley1RM(s.weight, s.reps)), 0);
-        const top = topSet(
-          we.sets.map((s) => ({
-            reps: s.reps,
-            weight: s.weight,
-            isWarmup: s.isWarmup,
-          })),
-        );
-        const longestHold = timed
-          ? we.sets.reduce((m, s) => Math.max(m, s.seconds ?? 0), 0)
-          : 0;
+      {groupLinkedExercises(workout.exercises).map((group, gi) => {
+        if (group.length === 1) {
+          return <ExerciseBlock key={group[0].id} we={group[0]} unit={unit} />;
+        }
+        const accent = `var(--chart-${(gi % 5) + 1})`;
         return (
-          <Card
-            key={we.id}
-            className={we.supersetGroup ? "border-l-4" : undefined}
-            style={
-              we.supersetGroup
-                ? {
-                    borderLeftColor: `var(--chart-${((we.supersetGroup - 1) % 5) + 1})`,
-                  }
-                : undefined
-            }
+          <div
+            key={group[0].id}
+            className="bg-muted/20 flex flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
+            style={{ borderLeftColor: accent }}
           >
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
-                {we.exercise && we.role ? (
-                  <Badge variant="ghost">{roleShort(we.role)}</Badge>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
+              <Link2 className="size-4 shrink-0" style={{ color: accent }} />
+              <span className="text-sm font-semibold">{linkedGroupLabel(group)}</span>
+              <span className="text-muted-foreground text-xs">
+                {group.length} exercises, no rest between them
+              </span>
+            </div>
+            {group.map((we, k) => (
+              <React.Fragment key={we.id}>
+                <ExerciseBlock we={we} unit={unit} inGroup />
+                {k < group.length - 1 && we.linkToNext ? (
+                  <LinkNote link={we.linkToNext} />
                 ) : null}
-                <Badge variant="secondary">
-                  {EQUIPMENT_LABELS[we.equipment ?? we.exercise?.equipment ?? "OTHER"]}
-                </Badge>
-                {we.supersetGroup ? (
-                  <Badge variant="outline">
-                    Superset {GROUP_LETTERS[we.supersetGroup - 1] ?? we.supersetGroup}
-                  </Badge>
-                ) : null}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-1 text-sm">
-              {we.sets.map((s, i) => (
-                <div
-                  key={s.id}
-                  className="grid grid-cols-[2rem_1fr_1fr_auto] items-center gap-2 tabular-nums"
-                >
-                  <span className="text-muted-foreground">
-                    {s.isWarmup ? "W" : i + 1}
-                  </span>
-                  <span>{formatWeight(s.weight, unit)}</span>
-                  <span>{timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}</span>
-                  <span>
-                    {s.isDropSet ? (
-                      <Badge variant="ghost" className="text-xs">
-                        drop
-                      </Badge>
-                    ) : null}
-                  </span>
-                </div>
-              ))}
-              <div className="text-muted-foreground mt-1 flex gap-4 text-xs">
-                {timed ? (
-                  longestHold > 0 ? (
-                    <span>Longest hold {longestHold}s</span>
-                  ) : null
-                ) : (
-                  <>
-                    {top ? (
-                      <span>
-                        Top set {formatWeight(top.weight, unit)} × {top.reps}
-                      </span>
-                    ) : null}
-                    {best > 0 ? <span>e1RM {formatWeight(best, unit)}</span> : null}
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </React.Fragment>
+            ))}
+          </div>
         );
       })}
     </div>
+  );
+}
+
+function LinkNote({ link }: { link: ExerciseLink }) {
+  return (
+    <div className="text-muted-foreground flex items-start gap-1.5 px-2 text-xs">
+      <ChevronsDown className="mt-px size-3.5 shrink-0" />
+      <span>
+        <span className="text-foreground font-medium">{LINK_LABELS[link]}</span> —{" "}
+        {LINK_HINTS[link]}
+      </span>
+    </div>
+  );
+}
+
+function ExerciseBlock({
+  we,
+  unit,
+  inGroup = false,
+}: {
+  we: WE;
+  unit: "KG" | "LB";
+  inGroup?: boolean;
+}) {
+  const timed = we.exercise?.isTimed ?? false;
+  const best = timed
+    ? 0
+    : we.sets.reduce((m, s) => Math.max(m, epley1RM(s.weight, s.reps)), 0);
+  const top = topSet(
+    we.sets.map((s) => ({ reps: s.reps, weight: s.weight, isWarmup: s.isWarmup })),
+  );
+  const longestHold = timed
+    ? we.sets.reduce((m, s) => Math.max(m, s.seconds ?? 0), 0)
+    : 0;
+
+  return (
+    <Card className={cn(inGroup && "shadow-none")}>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
+          {we.exercise && we.role ? (
+            <Badge variant="ghost">{roleShort(we.role)}</Badge>
+          ) : null}
+          <Badge variant="secondary">
+            {EQUIPMENT_LABELS[we.equipment ?? we.exercise?.equipment ?? "OTHER"]}
+          </Badge>
+          {we.linkToNext ? (
+            <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
+          ) : null}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1 text-sm">
+        {we.sets.map((s, i) => (
+          <div
+            key={s.id}
+            className="grid grid-cols-[2rem_1fr_1fr_auto] items-center gap-2 tabular-nums"
+          >
+            <span className="text-muted-foreground">{s.isWarmup ? "W" : i + 1}</span>
+            <span>{formatWeight(s.weight, unit)}</span>
+            <span>{timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}</span>
+            <span>
+              {s.isDropSet ? (
+                <Badge variant="ghost" className="text-xs">
+                  drop
+                </Badge>
+              ) : null}
+            </span>
+          </div>
+        ))}
+        <div className="text-muted-foreground mt-1 flex gap-4 text-xs">
+          {timed ? (
+            longestHold > 0 ? (
+              <span>Longest hold {longestHold}s</span>
+            ) : null
+          ) : (
+            <>
+              {top ? (
+                <span>
+                  Top set {formatWeight(top.weight, unit)} × {top.reps}
+                </span>
+              ) : null}
+              {best > 0 ? <span>e1RM {formatWeight(best, unit)}</span> : null}
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

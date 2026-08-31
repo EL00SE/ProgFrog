@@ -2,9 +2,17 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Play, Plus, Repeat2, Trash2, X } from "lucide-react";
+import { ChevronsDown, Play, Plus, Repeat2, Trash2, X } from "lucide-react";
 
-import { EQUIPMENT_LABELS, roleLabel, roleShort } from "@/lib/training";
+import {
+  EQUIPMENT_LABELS,
+  type ExerciseLink,
+  LINK_HINTS,
+  LINK_LABELS,
+  LINK_OPTION_LABELS,
+  roleLabel,
+  roleShort,
+} from "@/lib/training";
 import type { FullTemplate } from "@/lib/queries/templates";
 import {
   addTemplateDay,
@@ -36,9 +44,10 @@ import {
   type PickerExercise,
 } from "@/components/workout/exercise-picker-dialog";
 
-const GROUP_LETTERS = ["A", "B", "C", "D", "E", "F"];
-
 type Slot = FullTemplate["days"][number]["exercises"][number];
+
+const slotTitle = (s: Slot | undefined) =>
+  s ? (s.exercise?.name ?? roleLabel(s.muscle, s.role)) : null;
 
 export function TemplateEditor({
   template,
@@ -133,10 +142,11 @@ export function TemplateEditor({
                 No slots yet — add an exercise or an open slot below.
               </p>
             ) : (
-              day.exercises.map((te) => (
+              day.exercises.map((te, i) => (
                 <SlotRow
                   key={te.id}
                   slot={te}
+                  nextName={slotTitle(day.exercises[i + 1])}
                   catalog={catalog}
                   disabled={pending}
                   run={run}
@@ -199,17 +209,25 @@ export function TemplateEditor({
 
 function SlotRow({
   slot: te,
+  nextName,
   catalog,
   disabled,
   run,
 }: {
   slot: Slot;
+  nextName: string | null;
   catalog: PickerExercise[];
   disabled: boolean;
   run: (fn: () => Promise<unknown>) => void;
 }) {
+  const link = te.linkToNext as ExerciseLink | null;
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-2">
+    <div
+      className={
+        "flex flex-col gap-2 rounded-lg border p-2" +
+        (link ? " border-l-primary/60 border-l-4" : "")
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-[8rem] flex-1">
           <p className="text-sm font-medium">
@@ -298,29 +316,49 @@ function SlotRow({
         </label>
 
         <Select
-          defaultValue={te.supersetGroup ? String(te.supersetGroup) : "none"}
+          value={link ?? "none"}
           onValueChange={(v) =>
             run(() =>
               updateTemplateExercise({
                 id: te.id,
-                supersetGroup: v === "none" ? null : Number(v),
+                linkToNext: v === "none" ? null : (v as ExerciseLink),
               }),
             )
           }
         >
-          <SelectTrigger size="sm" className="w-24">
+          <SelectTrigger
+            size="sm"
+            className="w-full sm:w-72"
+            aria-label="What to do after this exercise"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">No SS</SelectItem>
-            {GROUP_LETTERS.map((letter, i) => (
-              <SelectItem key={letter} value={String(i + 1)}>
-                SS {letter}
-              </SelectItem>
-            ))}
+            <SelectItem value="none">{LINK_OPTION_LABELS.NONE}</SelectItem>
+            <SelectItem value="SUPERSET">{LINK_OPTION_LABELS.SUPERSET}</SelectItem>
+            <SelectItem value="DROP_SET">{LINK_OPTION_LABELS.DROP_SET}</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {link ? (
+        <div className="text-muted-foreground flex items-start gap-1.5 border-t pt-2 text-xs">
+          <ChevronsDown className="mt-px size-3.5 shrink-0" />
+          {nextName ? (
+            <span>
+              <span className="text-foreground font-medium">{LINK_LABELS[link]}</span>{" "}
+              with <span className="text-foreground font-medium">{nextName}</span> —{" "}
+              {LINK_HINTS[link]}
+            </span>
+          ) : (
+            <span>
+              <span className="text-foreground font-medium">{LINK_LABELS[link]}</span>{" "}
+              set, but there&rsquo;s no exercise after this one yet. Add the next exercise
+              below to pair with it.
+            </span>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

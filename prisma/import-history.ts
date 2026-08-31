@@ -18,6 +18,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import {
   type Equipment,
+  type ExerciseLink,
   type ExerciseRole,
   PrismaClient,
 } from "../src/generated/prisma/client";
@@ -253,13 +254,16 @@ async function main() {
         if (ex.ownerId === user.id) customNames.add(ex.name);
         const noteBits = [...new Set(m.notes)];
         if (m.each) noteBits.unshift("weights are per side");
+        // A "superset" note pairs this movement with the one logged after it.
+        const linkToNext: ExerciseLink | null =
+          m.superset && i < order.length - 1 ? "SUPERSET" : null;
         return {
           exerciseId: ex.id,
           muscle: ex.muscle,
           role: ex.role,
           equipment: ex.equipment,
           order: i,
-          supersetGroup: m.superset ? 1 : null,
+          linkToNext,
           notes: noteBits.join(" · ") || null,
           setCreate: setsFor.get(key)!.map((s, si) => ({
             order: si,

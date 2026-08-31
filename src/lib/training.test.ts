@@ -5,6 +5,8 @@ import {
   convertWeight,
   epley1RM,
   formatDuration,
+  groupLinkedExercises,
+  linkedGroupLabel,
   parseTargetSeconds,
   personalRecords,
   roleLabel,
@@ -144,6 +146,54 @@ describe("parseTargetSeconds", () => {
     expect(parseTargetSeconds("1:30")).toBe(90);
     expect(parseTargetSeconds(null)).toBe(60);
     expect(parseTargetSeconds("8-12")).toBe(8);
+  });
+});
+
+describe("groupLinkedExercises", () => {
+  const row = (id: string, linkToNext: "SUPERSET" | "DROP_SET" | null) => ({
+    id,
+    linkToNext,
+  });
+
+  it("keeps unlinked exercises as groups of one", () => {
+    const groups = groupLinkedExercises([row("a", null), row("b", null)]);
+    expect(groups.map((g) => g.map((r) => r.id))).toEqual([["a"], ["b"]]);
+  });
+
+  it("bundles a run chained by linkToNext", () => {
+    const groups = groupLinkedExercises([
+      row("a", "SUPERSET"),
+      row("b", "SUPERSET"),
+      row("c", null),
+      row("d", null),
+    ]);
+    expect(groups.map((g) => g.map((r) => r.id))).toEqual([["a", "b", "c"], ["d"]]);
+  });
+
+  it("ignores a trailing link on the last exercise", () => {
+    const groups = groupLinkedExercises([row("a", null), row("b", "SUPERSET")]);
+    expect(groups.map((g) => g.map((r) => r.id))).toEqual([["a"], ["b"]]);
+  });
+});
+
+describe("linkedGroupLabel", () => {
+  it("names a uniform group by its link type", () => {
+    expect(linkedGroupLabel([{ linkToNext: "SUPERSET" }, { linkToNext: null }])).toBe(
+      "Superset",
+    );
+    expect(linkedGroupLabel([{ linkToNext: "DROP_SET" }, { linkToNext: null }])).toBe(
+      "Drop set",
+    );
+  });
+
+  it("calls a mixed group a circuit", () => {
+    expect(
+      linkedGroupLabel([
+        { linkToNext: "SUPERSET" },
+        { linkToNext: "DROP_SET" },
+        { linkToNext: null },
+      ]),
+    ).toBe("Circuit");
   });
 });
 

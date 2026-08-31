@@ -204,6 +204,68 @@ export function parseTargetSeconds(target?: string | null): number {
   return Number.isFinite(n) && n > 0 ? n : 60;
 }
 
+/**
+ * How an exercise connects to the next one in the session. Mirrors the
+ * `ExerciseLink` enum in the Prisma schema.
+ */
+export type ExerciseLink = "SUPERSET" | "DROP_SET";
+
+export const LINK_LABELS: Record<ExerciseLink, string> = {
+  SUPERSET: "Superset",
+  DROP_SET: "Drop set",
+};
+
+export const LINK_VALUES = ["SUPERSET", "DROP_SET"] as const;
+
+/** Labels for the "what happens after this exercise" picker. */
+export const LINK_OPTION_LABELS = {
+  NONE: "Rest after this exercise",
+  SUPERSET: "Superset with the next exercise",
+  DROP_SET: "Drop set into the next exercise",
+} as const;
+
+/** One sentence a beginner can act on, per link type. */
+export const LINK_HINTS: Record<ExerciseLink, string> = {
+  SUPERSET:
+    "Do this and the next exercise back-to-back with no rest, then rest once before repeating.",
+  DROP_SET:
+    "Go straight into the next exercise with no rest — usually a lighter or easier movement.",
+};
+
+export type Linkable = { linkToNext: ExerciseLink | null };
+
+/**
+ * Bundle an ordered list of exercises into groups: a run of exercises chained by
+ * `linkToNext` becomes one group, everything else stays a group of one. A
+ * trailing `linkToNext` on the very last exercise is ignored (nothing follows).
+ */
+export function groupLinkedExercises<T extends Linkable>(rows: T[]): T[][] {
+  const groups: T[][] = [];
+  let current: T[] = [];
+  rows.forEach((row, i) => {
+    current.push(row);
+    const chains = row.linkToNext != null && i < rows.length - 1;
+    if (!chains) {
+      groups.push(current);
+      current = [];
+    }
+  });
+  if (current.length) groups.push(current);
+  return groups;
+}
+
+/**
+ * Heading for a linked group: "Superset" / "Drop set" when every join is the
+ * same type, otherwise "Circuit".
+ */
+export function linkedGroupLabel(group: Linkable[]): string {
+  if (group.length < 2) return "";
+  const joins = group.slice(0, -1).map((g) => g.linkToNext);
+  return joins.every((j) => j === joins[0])
+    ? LINK_LABELS[joins[0] as ExerciseLink]
+    : "Circuit";
+}
+
 export const ROLE_LABELS = {
   MAIN: "Main lift",
   SECONDARY: "Secondary lift",

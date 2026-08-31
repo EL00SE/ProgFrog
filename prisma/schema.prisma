@@ -94,6 +94,14 @@ enum ExerciseRole {
   ACCESSORY
 }
 
+/// How an exercise connects to the next one in the same session.
+/// `SUPERSET`: alternate between the two with no rest, then rest once at the end.
+/// `DROP_SET`: go straight into the next (usually lighter) exercise with no rest.
+enum ExerciseLink {
+  SUPERSET
+  DROP_SET
+}
+
 /// Exercise catalog. `ownerId == null` is a global seeded exercise visible to
 /// everyone; a set `ownerId` is a private custom exercise for that one user.
 model Exercise {
@@ -148,7 +156,7 @@ model WorkoutExercise {
   targetReps    String?
   order         Int           @default(0)
   equipment     Equipment?
-  supersetGroup Int?
+  linkToNext    ExerciseLink?
   notes         String?
 
   sets SetEntry[]
@@ -211,7 +219,7 @@ model TemplateExercise {
   order         Int           @default(0)
   targetSets    Int?
   targetReps    String?
-  supersetGroup Int?
+  linkToNext    ExerciseLink?
 
   @@index([templateDayId])
 }

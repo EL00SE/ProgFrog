@@ -6,7 +6,12 @@ import { z } from "zod";
 
 import { getCurrentUser, getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { type ExerciseRole, ROLE_VALUES } from "@/lib/training";
+import {
+  type ExerciseLink,
+  type ExerciseRole,
+  LINK_VALUES,
+  ROLE_VALUES,
+} from "@/lib/training";
 
 const EQUIPMENT = [
   "BARBELL",
@@ -20,6 +25,7 @@ const EQUIPMENT = [
 ] as const;
 
 const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
+const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
 
 const workoutExerciseInclude = {
   exercise: true,
@@ -132,7 +138,7 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
           targetReps: te.targetReps,
           order: i,
           equipment: te.exercise?.equipment ?? null,
-          supersetGroup: te.supersetGroup,
+          linkToNext: te.linkToNext,
           sets: {
             create: Array.from({ length: Math.max(te.targetSets ?? 0, 0) }).map(
               (_, s) => ({ order: s }),
@@ -215,7 +221,7 @@ export async function updateWorkout(input: z.infer<typeof updateWorkoutSchema>) 
 const addExerciseSchema = z.object({
   workoutId: z.string().min(1),
   exerciseId: z.string().min(1),
-  supersetGroup: z.number().int().positive().nullable().optional(),
+  linkToNext: linkEnum.nullable().optional(),
 });
 
 export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSchema>) {
@@ -243,7 +249,7 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
       role: exercise.role,
       order: count,
       equipment: exercise.equipment,
-      supersetGroup: data.supersetGroup ?? null,
+      linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
     },
     include: workoutExerciseInclude,
   });
@@ -329,7 +335,7 @@ export async function removeWorkoutExercise(workoutExerciseId: string) {
 const updateWeSchema = z.object({
   workoutExerciseId: z.string().min(1),
   equipment: z.enum(EQUIPMENT).nullable().optional(),
-  supersetGroup: z.number().int().positive().nullable().optional(),
+  linkToNext: linkEnum.nullable().optional(),
   notes: z.string().trim().max(500).nullable().optional(),
 });
 
@@ -342,7 +348,10 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
     where: { id: data.workoutExerciseId },
     data: {
       equipment: data.equipment === undefined ? undefined : data.equipment,
-      supersetGroup: data.supersetGroup === undefined ? undefined : data.supersetGroup,
+      linkToNext:
+        data.linkToNext === undefined
+          ? undefined
+          : (data.linkToNext as ExerciseLink | null),
       notes: data.notes === undefined ? undefined : data.notes,
     },
   });
@@ -352,7 +361,7 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
 
 // --- sets -----------------------------------------------------------------
 
-export async function addSet(workoutExerciseId: string) {
+export async function addSet(workoutExerciseId: string, opts?: { isDropSet?: boolean }) {
   const userId = await getCurrentUserId();
   const workoutId = await assertOwnWorkoutExercise(userId, workoutExerciseId);
 
@@ -368,6 +377,7 @@ export async function addSet(workoutExerciseId: string) {
       order: last ? last.order + 1 : 0,
       reps: last?.reps ?? 0,
       weight: last?.weight ?? 0,
+      isDropSet: opts?.isDropSet ?? false,
     },
   });
   revalidateWorkoutViews(workoutId);

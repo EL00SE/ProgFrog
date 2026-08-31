@@ -1,13 +1,29 @@
 "use client";
 
 import * as React from "react";
-import { Check, Play, Plus, Repeat2, Square, Timer, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronsDown,
+  Link2,
+  Play,
+  Plus,
+  Repeat2,
+  Square,
+  Timer,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
   EQUIPMENT_LABELS,
   epley1RM,
+  type ExerciseLink,
   formatWeight,
+  groupLinkedExercises,
+  LINK_HINTS,
+  LINK_LABELS,
+  LINK_OPTION_LABELS,
+  linkedGroupLabel,
   roleLabel,
   roleShort,
 } from "@/lib/training";
@@ -46,8 +62,6 @@ import { getDefaultRest, restEvent } from "@/components/workout/rest-timer";
 
 type WE = FullWorkout["exercises"][number];
 type SetEntry = WE["sets"][number];
-
-const GROUP_LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 function loggedSetCount(we: WE) {
   const timed = we.exercise?.isTimed ?? false;
@@ -116,9 +130,9 @@ export function WorkoutLogger({
     });
   }
 
-  function handleAddSet(weId: string) {
+  function handleAddSet(weId: string, opts?: { isDropSet?: boolean }) {
     startTransition(async () => {
-      const created = await addSet(weId);
+      const created = await addSet(weId, opts);
       setExercises((prev) =>
         prev.map((e) =>
           e.id === weId ? { ...e, sets: [...e.sets, created as SetEntry] } : e,
@@ -153,13 +167,13 @@ export function WorkoutLogger({
 
   function saveExercise(
     weId: string,
-    patch: { equipment?: string | null; supersetGroup?: number | null },
+    patch: { equipment?: string | null; linkToNext?: ExerciseLink | null },
   ) {
     startTransition(async () => {
       await updateWorkoutExercise({
         workoutExerciseId: weId,
         equipment: patch.equipment as never,
-        supersetGroup: patch.supersetGroup,
+        linkToNext: patch.linkToNext,
       });
     });
   }
@@ -215,32 +229,61 @@ export function WorkoutLogger({
         </p>
       )}
 
-      {exercises.map((we, i) => (
-        <ExerciseCard
-          key={we.id}
-          we={we}
-          index={i}
-          total={exercises.length}
-          unit={unit}
-          disabled={pending}
-          catalog={catalog}
-          allExercises={exercises}
-          onRemove={() => handleRemoveExercise(we.id)}
-          onAddSet={() => handleAddSet(we.id)}
-          onDeleteSet={(setId) => handleDeleteSet(we.id, setId)}
-          onPatchSet={(setId, patch) => patchSet(we.id, setId, patch)}
-          onSaveSet={saveSet}
-          onAssign={(exerciseId) => handleAssign(we.id, exerciseId)}
-          onSetGroup={(group) => {
-            patchExercise(we.id, { supersetGroup: group });
-            saveExercise(we.id, { supersetGroup: group });
-          }}
-          onSetEquipment={(eq) => {
+      {groupLinkedExercises(exercises).map((group, gi) => {
+        const cardProps = (we: WE) => ({
+          we,
+          index: exercises.findIndex((e) => e.id === we.id),
+          total: exercises.length,
+          unit,
+          disabled: pending,
+          catalog,
+          onRemove: () => handleRemoveExercise(we.id),
+          onAddSet: () => handleAddSet(we.id),
+          onAddDropSet: () => handleAddSet(we.id, { isDropSet: true }),
+          onDeleteSet: (setId: string) => handleDeleteSet(we.id, setId),
+          onPatchSet: (setId: string, patch: Partial<SetEntry>) =>
+            patchSet(we.id, setId, patch),
+          onSaveSet: saveSet,
+          onAssign: (exerciseId: string) => handleAssign(we.id, exerciseId),
+          onSetLink: (link: ExerciseLink | null) => {
+            patchExercise(we.id, { linkToNext: link });
+            saveExercise(we.id, { linkToNext: link });
+          },
+          onSetEquipment: (eq: string) => {
             patchExercise(we.id, { equipment: eq as WE["equipment"] });
             saveExercise(we.id, { equipment: eq });
-          }}
-        />
-      ))}
+          },
+        });
+
+        if (group.length === 1) {
+          return <ExerciseCard key={group[0].id} {...cardProps(group[0])} />;
+        }
+
+        const accent = `var(--chart-${(gi % 5) + 1})`;
+        return (
+          <div
+            key={group[0].id}
+            className="bg-muted/20 flex flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
+            style={{ borderLeftColor: accent }}
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
+              <Link2 className="size-4 shrink-0" style={{ color: accent }} />
+              <span className="text-sm font-semibold">{linkedGroupLabel(group)}</span>
+              <span className="text-muted-foreground text-xs">
+                {group.length} exercises, no rest between them
+              </span>
+            </div>
+            {group.map((we, k) => (
+              <React.Fragment key={we.id}>
+                <ExerciseCard {...cardProps(we)} inGroup />
+                {k < group.length - 1 && we.linkToNext ? (
+                  <LinkJoiner link={we.linkToNext} />
+                ) : null}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      })}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <ExercisePickerDialog
@@ -290,6 +333,19 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** The labelled "no rest — go straight on" divider shown between linked cards. */
+function LinkJoiner({ link }: { link: ExerciseLink }) {
+  return (
+    <div className="text-muted-foreground flex items-start gap-1.5 px-2 text-xs">
+      <ChevronsDown className="mt-px size-3.5 shrink-0" />
+      <span>
+        <span className="text-foreground font-medium">{LINK_LABELS[link]}</span> —{" "}
+        {LINK_HINTS[link]}
+      </span>
+    </div>
+  );
+}
+
 function ExerciseCard({
   we,
   index,
@@ -297,14 +353,15 @@ function ExerciseCard({
   unit,
   disabled,
   catalog,
-  allExercises,
+  inGroup = false,
   onRemove,
   onAddSet,
+  onAddDropSet,
   onDeleteSet,
   onPatchSet,
   onSaveSet,
   onAssign,
-  onSetGroup,
+  onSetLink,
   onSetEquipment,
 }: {
   we: WE;
@@ -313,21 +370,17 @@ function ExerciseCard({
   unit: "KG" | "LB";
   disabled: boolean;
   catalog: PickerExercise[];
-  allExercises: WE[];
+  inGroup?: boolean;
   onRemove: () => void;
   onAddSet: () => void;
+  onAddDropSet: () => void;
   onDeleteSet: (setId: string) => void;
   onPatchSet: (setId: string, patch: Partial<SetEntry>) => void;
   onSaveSet: (setId: string, patch: Partial<SetEntry>) => void;
   onAssign: (exerciseId: string) => void | Promise<void>;
-  onSetGroup: (group: number | null) => void;
+  onSetLink: (link: ExerciseLink | null) => void;
   onSetEquipment: (equipment: string) => void;
 }) {
-  const groupPartners = we.supersetGroup
-    ? allExercises.filter((e) => e.id !== we.id && e.supersetGroup === we.supersetGroup)
-        .length
-    : 0;
-
   const timed = we.exercise?.isTimed ?? false;
   const best = we.sets.reduce((m, s) => Math.max(m, epley1RM(s.weight, s.reps)), 0);
   const unfilled = !we.exercise;
@@ -342,16 +395,7 @@ function ExerciseCard({
       : null;
 
   return (
-    <Card
-      className={cn(we.supersetGroup && "border-l-4", done && "opacity-80")}
-      style={
-        we.supersetGroup
-          ? {
-              borderLeftColor: `var(--chart-${((we.supersetGroup - 1) % 5) + 1})`,
-            }
-          : undefined
-      }
-    >
+    <Card className={cn(inGroup && "shadow-none", done && "opacity-80")}>
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -374,11 +418,8 @@ function ExerciseCard({
               {we.muscle ? <Badge variant="secondary">{we.muscle}</Badge> : null}
               {we.role ? <Badge variant="ghost">{roleShort(we.role)}</Badge> : null}
               {timed ? <Badge variant="ghost">Timed</Badge> : null}
-              {we.supersetGroup ? (
-                <Badge variant="outline">
-                  Superset {GROUP_LETTERS[we.supersetGroup - 1] ?? we.supersetGroup}
-                  {groupPartners > 0 ? "" : " · add a partner"}
-                </Badge>
+              {we.linkToNext ? (
+                <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
               ) : null}
             </div>
             {target ? (
@@ -431,19 +472,20 @@ function ExerciseCard({
             </Select>
 
             <Select
-              value={we.supersetGroup ? String(we.supersetGroup) : "none"}
-              onValueChange={(v) => onSetGroup(v === "none" ? null : Number(v))}
+              value={we.linkToNext ?? "none"}
+              onValueChange={(v) => onSetLink(v === "none" ? null : (v as ExerciseLink))}
             >
-              <SelectTrigger size="sm" className="min-w-32 flex-1 sm:flex-none">
-                <SelectValue placeholder="Superset" />
+              <SelectTrigger
+                size="sm"
+                className="min-w-40 flex-1"
+                aria-label="What to do after this exercise"
+              >
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No superset</SelectItem>
-                {GROUP_LETTERS.map((letter, i) => (
-                  <SelectItem key={letter} value={String(i + 1)}>
-                    Superset {letter}
-                  </SelectItem>
-                ))}
+                <SelectItem value="none">{LINK_OPTION_LABELS.NONE}</SelectItem>
+                <SelectItem value="SUPERSET">{LINK_OPTION_LABELS.SUPERSET}</SelectItem>
+                <SelectItem value="DROP_SET">{LINK_OPTION_LABELS.DROP_SET}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -485,7 +527,12 @@ function ExerciseCard({
             <span>Set</span>
             <span>Weight ({unit.toLowerCase()})</span>
             <span>{timed ? "Seconds" : "Reps"}</span>
-            <span className="text-center">Drop</span>
+            <span
+              className="text-center"
+              title="Tick this on a set where you dropped the weight and kept going with no rest"
+            >
+              Drop
+            </span>
             <span />
           </div>
           {we.sets.map((s, i) => (
@@ -500,10 +547,28 @@ function ExerciseCard({
               onDelete={() => onDeleteSet(s.id)}
             />
           ))}
-          <div className="mt-1 flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
-              <Plus className="size-3.5" /> Add set
-            </Button>
+          {we.sets.some((s) => s.isDropSet) ? (
+            <p className="text-muted-foreground px-1 text-[0.7rem]">
+              &ldquo;Drop&rdquo; = you stripped weight and kept repping with no rest.
+            </p>
+          ) : null}
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
+                <Plus className="size-3.5" /> Add set
+              </Button>
+              {!timed ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onAddDropSet}
+                  disabled={disabled}
+                  title="Adds a set marked as a drop — lower the weight and rep out again with no rest"
+                >
+                  <ChevronsDown className="size-3.5" /> Add drop set
+                </Button>
+              ) : null}
+            </div>
             {!timed && best > 0 && (
               <span className="text-muted-foreground text-xs">
                 Best e1RM {formatWeight(best, unit)}

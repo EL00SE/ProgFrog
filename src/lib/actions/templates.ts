@@ -6,9 +6,15 @@ import { z } from "zod";
 
 import { getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
-import { type ExerciseRole, ROLE_VALUES } from "@/lib/training";
+import {
+  type ExerciseLink,
+  type ExerciseRole,
+  LINK_VALUES,
+  ROLE_VALUES,
+} from "@/lib/training";
 
 const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
+const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
 
 function revalidateTemplateViews(templateId?: string) {
   revalidatePath("/dashboard/templates");
@@ -144,7 +150,7 @@ const addExerciseSchema = z
     role: roleEnum.optional(),
     targetSets: z.number().int().min(1).max(20).optional(),
     targetReps: z.string().trim().max(20).optional(),
-    supersetGroup: z.number().int().positive().nullable().optional(),
+    linkToNext: linkEnum.nullable().optional(),
   })
   .refine((d) => d.exerciseId || (d.muscle && d.role), {
     message: "Pick an exercise, or a muscle and role",
@@ -181,7 +187,7 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
       order: count,
       targetSets: data.targetSets ?? 3,
       targetReps: data.targetReps || "8-12",
-      supersetGroup: data.supersetGroup ?? null,
+      linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
     },
   });
   revalidateTemplateViews(templateId);
@@ -195,7 +201,7 @@ const updateExerciseSchema = z.object({
   role: roleEnum.nullable().optional(),
   targetSets: z.number().int().min(1).max(20).nullable().optional(),
   targetReps: z.string().trim().max(20).nullable().optional(),
-  supersetGroup: z.number().int().positive().nullable().optional(),
+  linkToNext: linkEnum.nullable().optional(),
 });
 
 export async function updateTemplateExercise(
@@ -230,7 +236,10 @@ export async function updateTemplateExercise(
       role: role === undefined ? undefined : role,
       targetSets: data.targetSets === undefined ? undefined : data.targetSets,
       targetReps: data.targetReps === undefined ? undefined : data.targetReps,
-      supersetGroup: data.supersetGroup === undefined ? undefined : data.supersetGroup,
+      linkToNext:
+        data.linkToNext === undefined
+          ? undefined
+          : (data.linkToNext as ExerciseLink | null),
     },
   });
   revalidateTemplateViews(templateId);
