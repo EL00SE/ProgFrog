@@ -847,10 +847,10 @@ function ExerciseCard({
 
       {!unfilled && (
         <CardContent className="flex flex-col gap-1.5">
-          <div className="text-muted-foreground grid grid-cols-[3.25rem_1fr_1fr_1.75rem] items-center gap-2 px-1 text-xs font-medium">
-            <span>Type</span>
-            <span>Weight ({unit.toLowerCase()})</span>
-            <span>{timed ? "Seconds" : "Reps"}</span>
+          <div className="text-muted-foreground grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2 px-1 text-xs font-medium">
+            <span>Set</span>
+            <span className="ps-8">Weight ({unit.toLowerCase()})</span>
+            <span className="ps-8">{timed ? "Seconds" : "Reps"}</span>
             <span />
           </div>
           {(() => {
@@ -931,12 +931,13 @@ function SetTypeField({
 
   if (isMobile) {
     return (
-      <div className={cn("relative h-9 w-full", tone)}>
+      <div className={cn("relative h-11 w-full", tone)}>
         <div
           aria-hidden
-          className="border-input dark:bg-input/30 flex h-full w-full items-center justify-center rounded-md border px-1.5 text-sm font-semibold tabular-nums shadow-xs"
+          className="border-input bg-muted/40 flex h-full w-full items-center justify-center gap-0.5 rounded-md border px-1 text-sm font-semibold tabular-nums shadow-xs"
         >
           {token}
+          <ChevronDown className="size-3 opacity-40" />
         </div>
         <select
           value={value}
@@ -960,7 +961,7 @@ function SetTypeField({
         size="sm"
         aria-label={label}
         className={cn(
-          "h-9 w-full justify-center px-1.5 font-semibold tabular-nums",
+          "bg-muted/40 h-11 w-full justify-center gap-0.5 px-1.5 font-semibold tabular-nums",
           tone,
         )}
       >
@@ -1055,7 +1056,7 @@ function SetRowImpl({
   const token = set.type === "NORMAL" ? (number ?? "•") : SET_TYPE_CODE[set.type];
 
   return (
-    <div className="grid grid-cols-[3.25rem_1fr_1fr_1.75rem] items-center gap-2">
+    <div className="grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2">
       <SetTypeField
         value={set.type}
         token={token}
@@ -1070,6 +1071,7 @@ function SetRowImpl({
         kind="weight"
         value={set.weight}
         unit={unit}
+        disabled={disabled}
         onInput={(w) => change({ weight: w })}
         onPick={(w) => commit({ weight: w })}
         onBlur={flush}
@@ -1086,6 +1088,7 @@ function SetRowImpl({
           kind="reps"
           value={set.reps}
           unit={unit}
+          disabled={disabled}
           placeholder={set.targetReps ?? defaultReps ?? ""}
           onInput={(r) => change({ reps: r })}
           onPick={(r) => commit({ reps: r })}
@@ -1095,6 +1098,7 @@ function SetRowImpl({
       <Button
         variant="ghost"
         size="icon-xs"
+        className="text-muted-foreground/70 justify-self-center"
         onClick={onDelete}
         disabled={disabled}
         aria-label="Delete set"
@@ -1142,13 +1146,14 @@ function TimedInput({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-stretch gap-1">
       <Input
         type="number"
         inputMode="numeric"
         min="0"
         value={running ? elapsed : seconds || ""}
         disabled={disabled || running}
+        className="h-11 min-w-0 flex-1 text-center tabular-nums"
         onChange={(e) => {
           const v = Number(e.target.value) || 0;
           setElapsed(v);
@@ -1159,7 +1164,8 @@ function TimedInput({
       <Button
         type="button"
         variant={running ? "default" : "outline"}
-        size="icon-sm"
+        size="icon"
+        className="h-11 w-9 shrink-0"
         onClick={toggle}
         disabled={disabled}
         aria-label={running ? "Stop" : "Start hold"}
