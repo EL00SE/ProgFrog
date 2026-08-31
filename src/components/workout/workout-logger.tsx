@@ -20,12 +20,17 @@ import {
   type ExerciseLink,
   formatWeight,
   groupLinkedExercises,
+  isWorkingSet,
   LINK_HINTS,
   LINK_LABELS,
   LINK_OPTION_LABELS,
   linkedGroupLabel,
   roleLabel,
   roleShort,
+  SET_TYPE_CODE,
+  SET_TYPE_LABELS,
+  SET_TYPE_VALUES,
+  type SetType,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import {
@@ -44,7 +49,6 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -65,8 +69,9 @@ type SetEntry = WE["sets"][number];
 
 function loggedSetCount(we: WE) {
   const timed = we.exercise?.isTimed ?? false;
-  return we.sets.filter((s) => !s.isWarmup && (timed ? (s.seconds ?? 0) > 0 : s.reps > 0))
-    .length;
+  return we.sets.filter(
+    (s) => isWorkingSet(s) && (timed ? (s.seconds ?? 0) > 0 : s.reps > 0),
+  ).length;
 }
 
 function isExerciseDone(we: WE) {
@@ -130,7 +135,7 @@ export function WorkoutLogger({
     });
   }
 
-  function handleAddSet(weId: string, opts?: { isDropSet?: boolean }) {
+  function handleAddSet(weId: string, opts?: { type?: SetType }) {
     startTransition(async () => {
       const created = await addSet(weId, opts);
       setExercises((prev) =>
@@ -156,11 +161,10 @@ export function WorkoutLogger({
     startTransition(async () => {
       await updateSet({
         setId,
+        type: patch.type ?? undefined,
         reps: patch.reps,
         seconds: patch.seconds,
         weight: patch.weight,
-        isDropSet: patch.isDropSet,
-        isWarmup: patch.isWarmup,
       });
     });
   }
@@ -191,7 +195,7 @@ export function WorkoutLogger({
     startTransition(() => deleteWorkout(workout.id));
   }
 
-  const working = exercises.flatMap((e) => e.sets.filter((s) => !s.isWarmup));
+  const working = exercises.flatMap((e) => e.sets.filter(isWorkingSet));
   const totalSets = working.length;
   const totalVolume = working.reduce((x, s) => x + s.reps * s.weight, 0);
   const doneCount = exercises.filter(isExerciseDone).length;
@@ -239,7 +243,7 @@ export function WorkoutLogger({
           catalog,
           onRemove: () => handleRemoveExercise(we.id),
           onAddSet: () => handleAddSet(we.id),
-          onAddDropSet: () => handleAddSet(we.id, { isDropSet: true }),
+          onAddDropSet: () => handleAddSet(we.id, { type: "DROP" }),
           onDeleteSet: (setId: string) => handleDeleteSet(we.id, setId),
           onPatchSet: (setId: string, patch: Partial<SetEntry>) =>
             patchSet(we.id, setId, patch),
@@ -523,35 +527,35 @@ function ExerciseCard({
 
       {!unfilled && (
         <CardContent className="flex flex-col gap-1.5">
-          <div className="text-muted-foreground grid grid-cols-[2rem_1fr_1fr_auto_2rem] items-center gap-2 px-1 text-xs font-medium">
-            <span>Set</span>
+          <div className="text-muted-foreground grid grid-cols-[3.25rem_1fr_1fr_1.75rem] items-center gap-2 px-1 text-xs font-medium">
+            <span>Type</span>
             <span>Weight ({unit.toLowerCase()})</span>
             <span>{timed ? "Seconds" : "Reps"}</span>
-            <span
-              className="text-center"
-              title="Tick this on a set where you dropped the weight and kept going with no rest"
-            >
-              Drop
-            </span>
             <span />
           </div>
-          {we.sets.map((s, i) => (
-            <SetRow
-              key={s.id}
-              index={i}
-              set={s}
-              timed={timed}
-              disabled={disabled}
-              onPatch={(patch) => onPatchSet(s.id, patch)}
-              onSave={(patch) => onSaveSet(s.id, patch)}
-              onDelete={() => onDeleteSet(s.id)}
-            />
-          ))}
-          {we.sets.some((s) => s.isDropSet) ? (
-            <p className="text-muted-foreground px-1 text-[0.7rem]">
-              &ldquo;Drop&rdquo; = you stripped weight and kept repping with no rest.
-            </p>
-          ) : null}
+          {(() => {
+            let n = 0;
+            return we.sets.map((s) => {
+              const number = s.type === "WARMUP" ? null : (n += 1);
+              return (
+                <SetRow
+                  key={s.id}
+                  set={s}
+                  number={number}
+                  defaultReps={we.targetReps}
+                  timed={timed}
+                  disabled={disabled}
+                  onPatch={(patch) => onPatchSet(s.id, patch)}
+                  onSave={(patch) => onSaveSet(s.id, patch)}
+                  onDelete={() => onDeleteSet(s.id)}
+                />
+              );
+            });
+          })()}
+          <p className="text-muted-foreground px-1 text-[0.7rem]">
+            Tap a set&rsquo;s type — <b>W</b> warm-up · <b>D</b> drop set · <b>F</b> to
+            failure (warm-ups don&rsquo;t count toward volume).
+          </p>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
@@ -581,17 +585,26 @@ function ExerciseCard({
   );
 }
 
+const SET_TYPE_TONE: Record<SetType, string> = {
+  WARMUP: "text-amber-600 dark:text-amber-400",
+  NORMAL: "text-muted-foreground",
+  DROP: "text-violet-600 dark:text-violet-400",
+  FAILURE: "text-rose-600 dark:text-rose-400",
+};
+
 function SetRow({
-  index,
   set,
+  number,
+  defaultReps,
   timed,
   disabled,
   onPatch,
   onSave,
   onDelete,
 }: {
-  index: number;
   set: SetEntry;
+  number: number | null;
+  defaultReps: string | null;
   timed: boolean;
   disabled: boolean;
   onPatch: (patch: Partial<SetEntry>) => void;
@@ -626,15 +639,36 @@ function SetRow({
     timer.current = window.setTimeout(flush, 450);
   }
 
+  const token = set.type === "NORMAL" ? (number ?? "•") : SET_TYPE_CODE[set.type];
+
   return (
-    <div className="grid grid-cols-[2rem_1fr_1fr_auto_2rem] items-center gap-2">
-      <span
-        className={
-          "text-muted-foreground text-sm tabular-nums" + (set.isWarmup ? " italic" : "")
-        }
+    <div className="grid grid-cols-[3.25rem_1fr_1fr_1.75rem] items-center gap-2">
+      <Select
+        value={set.type}
+        onValueChange={(v) => {
+          onPatch({ type: v as SetType });
+          onSave({ type: v as SetType });
+        }}
       >
-        {set.isWarmup ? "W" : index + 1}
-      </span>
+        <SelectTrigger
+          size="sm"
+          disabled={disabled}
+          aria-label={`Set type — ${SET_TYPE_LABELS[set.type]}`}
+          className={cn(
+            "h-9 w-full justify-center px-1.5 font-semibold tabular-nums",
+            SET_TYPE_TONE[set.type],
+          )}
+        >
+          {token}
+        </SelectTrigger>
+        <SelectContent>
+          {SET_TYPE_VALUES.map((t) => (
+            <SelectItem key={t} value={t}>
+              {SET_TYPE_LABELS[t]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Input
         type="number"
         inputMode="decimal"
@@ -658,23 +692,12 @@ function SetRow({
           inputMode="numeric"
           min="0"
           defaultValue={set.reps || ""}
+          placeholder={set.targetReps ?? defaultReps ?? ""}
           disabled={disabled}
           onChange={(e) => change({ reps: Number(e.target.value) || 0 })}
           onBlur={flush}
         />
       )}
-      <div className="flex justify-center">
-        <Checkbox
-          checked={set.isDropSet}
-          disabled={disabled}
-          onCheckedChange={(v) => {
-            const isDropSet = v === true;
-            onPatch({ isDropSet });
-            onSave({ isDropSet });
-          }}
-          aria-label="Drop set"
-        />
-      </div>
       <Button
         variant="ghost"
         size="icon-xs"

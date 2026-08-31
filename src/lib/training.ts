@@ -5,10 +5,50 @@
 
 export type WeightUnit = "KG" | "LB";
 
+/** Mirrors the `SetType` enum in the Prisma schema. */
+export type SetType = "WARMUP" | "NORMAL" | "DROP" | "FAILURE";
+
+export const SET_TYPE_VALUES = ["WARMUP", "NORMAL", "DROP", "FAILURE"] as const;
+
+export const SET_TYPE_LABELS: Record<SetType, string> = {
+  WARMUP: "Warm-up set",
+  NORMAL: "Normal set",
+  DROP: "Drop set",
+  FAILURE: "To failure",
+};
+
+/** Compact badge form for dense set rows. */
+export const SET_TYPE_SHORT: Record<SetType, string> = {
+  WARMUP: "Warm-up",
+  NORMAL: "Normal",
+  DROP: "Drop",
+  FAILURE: "Failure",
+};
+
+/** Single-letter code for the tightest set rows (always shown with a legend). */
+export const SET_TYPE_CODE: Record<SetType, string> = {
+  WARMUP: "W",
+  NORMAL: "N",
+  DROP: "D",
+  FAILURE: "F",
+};
+
+export const SET_TYPE_HINTS: Record<SetType, string> = {
+  WARMUP: "Lighter preparatory set — not counted in volume or personal records.",
+  NORMAL: "A straight working set.",
+  DROP: "Drop the weight from the set before and rep out again with no rest.",
+  FAILURE: "Take this set all the way to muscular failure.",
+};
+
+/** A warm-up set is excluded from volume, PR and progress math. */
+export function isWorkingSet(s: { type?: SetType | null }): boolean {
+  return s.type !== "WARMUP";
+}
+
 export type SetLike = {
   reps: number;
   weight: number;
-  isWarmup?: boolean;
+  type?: SetType | null;
 };
 
 const LB_PER_KG = 2.2046226218;
@@ -96,17 +136,17 @@ export function epley1RM(weight: number, reps: number): number {
 
 /** Total volume (weight × reps) for a list of sets, warm-ups excluded. */
 export function workoutVolume(sets: SetLike[]): number {
-  return sets.filter((s) => !s.isWarmup).reduce((sum, s) => sum + s.weight * s.reps, 0);
+  return sets.filter(isWorkingSet).reduce((sum, s) => sum + s.weight * s.reps, 0);
 }
 
 /** Total working reps, warm-ups excluded. */
 export function workingReps(sets: SetLike[]): number {
-  return sets.filter((s) => !s.isWarmup).reduce((sum, s) => sum + s.reps, 0);
+  return sets.filter(isWorkingSet).reduce((sum, s) => sum + s.reps, 0);
 }
 
 /** The heaviest working set (ties broken by reps). `null` if there is none. */
 export function topSet(sets: SetLike[]): SetLike | null {
-  const working = sets.filter((s) => !s.isWarmup && s.weight > 0 && s.reps > 0);
+  const working = sets.filter((s) => isWorkingSet(s) && s.weight > 0 && s.reps > 0);
   if (working.length === 0) return null;
   return working.reduce((best, s) =>
     s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps) ? s : best,
@@ -116,7 +156,7 @@ export function topSet(sets: SetLike[]): SetLike | null {
 /** Best estimated 1RM across a list of sets. */
 export function best1RM(sets: SetLike[]): number {
   return sets
-    .filter((s) => !s.isWarmup)
+    .filter(isWorkingSet)
     .reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0);
 }
 

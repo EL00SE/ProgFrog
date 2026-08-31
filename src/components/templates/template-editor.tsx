@@ -12,17 +12,24 @@ import {
   LINK_OPTION_LABELS,
   roleLabel,
   roleShort,
+  SET_TYPE_LABELS,
+  SET_TYPE_SHORT,
+  SET_TYPE_VALUES,
+  type SetType,
 } from "@/lib/training";
 import type { FullTemplate } from "@/lib/queries/templates";
 import {
   addTemplateDay,
   addTemplateExercise,
+  addTemplateSet,
   deleteTemplate,
   removeTemplateDay,
   removeTemplateExercise,
+  removeTemplateSet,
   renameTemplateDay,
   updateTemplate,
   updateTemplateExercise,
+  updateTemplateSet,
 } from "@/lib/actions/templates";
 import { startWorkoutFromTemplateDay } from "@/lib/actions/workouts";
 import { Badge } from "@/components/ui/badge";
@@ -281,31 +288,14 @@ function SlotRow({
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-muted-foreground flex items-center gap-1 text-xs">
-          Sets
-          <Input
-            type="number"
-            min="1"
-            max="20"
-            defaultValue={te.targetSets ?? 3}
-            className="h-7 w-14"
-            onBlur={(e) => {
-              const targetSets = Number(e.target.value) || null;
-              if (targetSets !== te.targetSets) {
-                run(() => updateTemplateExercise({ id: te.id, targetSets }));
-              }
-            }}
-          />
-        </label>
-
-        <label className="text-muted-foreground flex items-center gap-1 text-xs">
-          Reps
+      <div className="flex flex-col gap-2">
+        <label className="text-muted-foreground flex w-fit items-center gap-1.5 text-xs">
+          Default reps
           <Input
             defaultValue={te.targetReps ?? ""}
             placeholder="8-12"
             maxLength={20}
-            className="h-7 w-16"
+            className="h-7 w-20"
             onBlur={(e) => {
               const targetReps = e.target.value.trim() || null;
               if (targetReps !== te.targetReps) {
@@ -314,6 +304,35 @@ function SlotRow({
             }}
           />
         </label>
+
+        <div className="flex flex-col gap-1.5">
+          <div className="text-muted-foreground grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2 text-[0.7rem] font-medium">
+            <span />
+            <span>Set type</span>
+            <span>Reps</span>
+            <span />
+          </div>
+          {te.sets.map((ts, i) => (
+            <TemplateSetRow
+              key={ts.id}
+              set={ts}
+              number={i + 1}
+              defaultReps={te.targetReps}
+              disabled={disabled}
+              canRemove={te.sets.length > 1}
+              run={run}
+            />
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-fit"
+            disabled={disabled}
+            onClick={() => run(() => addTemplateSet(te.id))}
+          >
+            <Plus className="size-3.5" /> Add set
+          </Button>
+        </div>
 
         <Select
           value={link ?? "none"}
@@ -359,6 +378,69 @@ function SlotRow({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type PlannedSet = Slot["sets"][number];
+
+function TemplateSetRow({
+  set: ts,
+  number,
+  defaultReps,
+  disabled,
+  canRemove,
+  run,
+}: {
+  set: PlannedSet;
+  number: number;
+  defaultReps: string | null;
+  disabled: boolean;
+  canRemove: boolean;
+  run: (fn: () => Promise<unknown>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2">
+      <span className="text-muted-foreground text-xs tabular-nums">{number}</span>
+      <Select
+        value={ts.type}
+        onValueChange={(v) =>
+          run(() => updateTemplateSet({ id: ts.id, type: v as SetType }))
+        }
+      >
+        <SelectTrigger size="sm" className="w-full" aria-label="Set type">
+          <SelectValue>{SET_TYPE_SHORT[ts.type]}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {SET_TYPE_VALUES.map((t) => (
+            <SelectItem key={t} value={t}>
+              {SET_TYPE_LABELS[t]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        defaultValue={ts.targetReps ?? ""}
+        placeholder={defaultReps ?? "8-12"}
+        maxLength={20}
+        className="h-8"
+        disabled={disabled}
+        onBlur={(e) => {
+          const targetReps = e.target.value.trim() || null;
+          if (targetReps !== (ts.targetReps ?? null)) {
+            run(() => updateTemplateSet({ id: ts.id, targetReps }));
+          }
+        }}
+      />
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        disabled={disabled || !canRemove}
+        aria-label="Remove set"
+        onClick={() => run(() => removeTemplateSet(ts.id))}
+      >
+        <Trash2 className="size-3.5" />
+      </Button>
     </div>
   );
 }

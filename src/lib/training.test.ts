@@ -6,6 +6,7 @@ import {
   epley1RM,
   formatDuration,
   groupLinkedExercises,
+  isWorkingSet,
   linkedGroupLabel,
   parseTargetSeconds,
   personalRecords,
@@ -47,10 +48,20 @@ describe("workoutVolume", () => {
   it("sums weight x reps and ignores warm-ups", () => {
     const sets = [
       { weight: 100, reps: 5 },
-      { weight: 60, reps: 10, isWarmup: true },
+      { weight: 60, reps: 10, type: "WARMUP" as const },
       { weight: 100, reps: 5 },
     ];
     expect(workoutVolume(sets)).toBe(1000);
+  });
+});
+
+describe("isWorkingSet", () => {
+  it("counts everything except warm-ups", () => {
+    expect(isWorkingSet({ type: "NORMAL" })).toBe(true);
+    expect(isWorkingSet({ type: "DROP" })).toBe(true);
+    expect(isWorkingSet({ type: "FAILURE" })).toBe(true);
+    expect(isWorkingSet({})).toBe(true);
+    expect(isWorkingSet({ type: "WARMUP" })).toBe(false);
   });
 });
 
@@ -59,7 +70,7 @@ describe("topSet / best1RM", () => {
     { weight: 80, reps: 8 },
     { weight: 100, reps: 3 },
     { weight: 100, reps: 5 },
-    { weight: 120, reps: 10, isWarmup: true },
+    { weight: 120, reps: 10, type: "WARMUP" as const },
   ];
 
   it("picks the heaviest working set, ties broken by reps", () => {

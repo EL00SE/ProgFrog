@@ -122,7 +122,7 @@ async function buildSeries(
     const k = localDateKey(we.workout.date);
     const sets = we.sets.map<SetLike>((s) => ({
       reps: s.reps,
-      isWarmup: s.isWarmup,
+      type: s.type,
       weight: convertWeight(s.weight, we.workout.unit, displayUnit),
     }));
     byDate.set(k, [...(byDate.get(k) ?? []), ...sets]);

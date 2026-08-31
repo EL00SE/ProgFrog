@@ -11,10 +11,13 @@ import {
   type ExerciseRole,
   LINK_VALUES,
   ROLE_VALUES,
+  SET_TYPE_VALUES,
+  type SetType,
 } from "@/lib/training";
 
 const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
 const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
+const setTypeEnum = z.enum([...SET_TYPE_VALUES] as [string, ...string[]]);
 
 function revalidateTemplateViews(templateId?: string) {
   revalidatePath("/dashboard/templates");
@@ -45,6 +48,23 @@ async function assertOwnTemplateExercise(userId: string, id: string) {
   });
   if (!te) throw new Error("Not found");
   return te.templateDay.templateId;
+}
+
+async function assertOwnTemplateSet(userId: string, id: string) {
+  const ts = await prisma.templateSet.findFirst({
+    where: { id, templateExercise: { templateDay: { template: { userId } } } },
+    select: {
+      templateExerciseId: true,
+      templateExercise: {
+        select: { templateDay: { select: { templateId: true } } },
+      },
+    },
+  });
+  if (!ts) throw new Error("Not found");
+  return {
+    templateExerciseId: ts.templateExerciseId,
+    templateId: ts.templateExercise.templateDay.templateId,
+  };
 }
 
 // --- template -------------------------------------------------------------
@@ -178,6 +198,7 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
   const count = await prisma.templateExercise.count({
     where: { templateDayId: data.dayId },
   });
+  const setCount = data.targetSets ?? 3;
   await prisma.templateExercise.create({
     data: {
       templateDayId: data.dayId,
@@ -185,9 +206,14 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
       muscle,
       role,
       order: count,
-      targetSets: data.targetSets ?? 3,
       targetReps: data.targetReps || "8-12",
       linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
+      sets: {
+        create: Array.from({ length: setCount }, (_, i) => ({
+          order: i,
+          type: "NORMAL" as const,
+        })),
+      },
     },
   });
   revalidateTemplateViews(templateId);
@@ -199,7 +225,6 @@ const updateExerciseSchema = z.object({
   exerciseId: z.string().min(1).nullable().optional(),
   muscle: z.string().trim().max(40).nullable().optional(),
   role: roleEnum.nullable().optional(),
-  targetSets: z.number().int().min(1).max(20).nullable().optional(),
   targetReps: z.string().trim().max(20).nullable().optional(),
   linkToNext: linkEnum.nullable().optional(),
 });
@@ -234,7 +259,6 @@ export async function updateTemplateExercise(
       exerciseId: data.exerciseId === undefined ? undefined : data.exerciseId,
       muscle: muscle === undefined ? undefined : muscle,
       role: role === undefined ? undefined : role,
-      targetSets: data.targetSets === undefined ? undefined : data.targetSets,
       targetReps: data.targetReps === undefined ? undefined : data.targetReps,
       linkToNext:
         data.linkToNext === undefined
@@ -250,6 +274,56 @@ export async function removeTemplateExercise(id: string) {
   const userId = await getCurrentUserId();
   const templateId = await assertOwnTemplateExercise(userId, id);
   await prisma.templateExercise.delete({ where: { id } });
+  revalidateTemplateViews(templateId);
+  return { ok: true as const };
+}
+
+// --- planned sets within a template slot ----------------------------------
+
+/** Append a planned set to a template slot, copying the last set's type. */
+export async function addTemplateSet(templateExerciseId: string) {
+  const userId = await getCurrentUserId();
+  const templateId = await assertOwnTemplateExercise(userId, templateExerciseId);
+  const last = await prisma.templateSet.findFirst({
+    where: { templateExerciseId },
+    orderBy: { order: "desc" },
+  });
+  await prisma.templateSet.create({
+    data: {
+      templateExerciseId,
+      order: last ? last.order + 1 : 0,
+      type: last?.type ?? "NORMAL",
+    },
+  });
+  revalidateTemplateViews(templateId);
+  return { ok: true as const };
+}
+
+const updateSetSchema = z.object({
+  id: z.string().min(1),
+  type: setTypeEnum.optional(),
+  targetReps: z.string().trim().max(20).nullable().optional(),
+});
+
+export async function updateTemplateSet(input: z.infer<typeof updateSetSchema>) {
+  const userId = await getCurrentUserId();
+  const data = updateSetSchema.parse(input);
+  const { templateId } = await assertOwnTemplateSet(userId, data.id);
+  await prisma.templateSet.update({
+    where: { id: data.id },
+    data: {
+      type: data.type === undefined ? undefined : (data.type as SetType),
+      targetReps: data.targetReps === undefined ? undefined : data.targetReps,
+    },
+  });
+  revalidateTemplateViews(templateId);
+  return { ok: true as const };
+}
+
+export async function removeTemplateSet(id: string) {
+  const userId = await getCurrentUserId();
+  const { templateId } = await assertOwnTemplateSet(userId, id);
+  await prisma.templateSet.delete({ where: { id } });
   revalidateTemplateViews(templateId);
   return { ok: true as const };
 }

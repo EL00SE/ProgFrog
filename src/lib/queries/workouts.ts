@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import {
   convertWeight,
+  isWorkingSet,
   roleLabel,
   type SetLike,
   startOfWeek,
@@ -67,7 +68,7 @@ export function summarizeWorkout(w: NonNullable<WorkoutWithSets>) {
     we.sets.map((s) => ({
       reps: s.reps,
       weight: s.weight,
-      isWarmup: s.isWarmup,
+      type: s.type,
     })),
   );
   return {
@@ -77,7 +78,7 @@ export function summarizeWorkout(w: NonNullable<WorkoutWithSets>) {
     unit: w.unit,
     finishedAt: w.finishedAt,
     exerciseCount: w.exercises.length,
-    setCount: allSets.filter((s) => !s.isWarmup).length,
+    setCount: allSets.filter(isWorkingSet).length,
     volume: workoutVolume(allSets),
     exerciseNames: [
       ...new Set(
@@ -121,10 +122,10 @@ export async function getDashboardStats(userId: string, displayUnit: WeightUnit)
       we.sets.map((s) => ({
         reps: s.reps,
         weight: s.weight,
-        isWarmup: s.isWarmup,
+        type: s.type,
       })),
     );
-    const working = sets.filter((s) => !s.isWarmup);
+    const working = sets.filter(isWorkingSet);
     const entry = {
       workouts: 1,
       sets: working.length,

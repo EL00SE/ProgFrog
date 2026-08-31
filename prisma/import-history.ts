@@ -21,6 +21,7 @@ import {
   type ExerciseLink,
   type ExerciseRole,
   PrismaClient,
+  type SetType,
 } from "../src/generated/prisma/client";
 
 const prisma = new PrismaClient({
@@ -205,7 +206,7 @@ async function main() {
     >();
     const setsFor = new Map<
       string,
-      { reps: number; seconds: number; weight: number; drop: boolean }[]
+      { reps: number; seconds: number; weight: number; drop: boolean; failure: boolean }[]
     >();
 
     for (const r of dayRows) {
@@ -240,10 +241,9 @@ async function main() {
         m.notes.push(`assisted ${Math.abs(weight)}kg`);
         weight = 0;
       }
-      if (isFailure) m.notes.push("to failure");
       const drop = /drop set/i.test(r.notes);
       for (let i = 0; i < count; i++) {
-        setsFor.get(key)!.push({ reps, seconds, weight, drop });
+        setsFor.get(key)!.push({ reps, seconds, weight, drop, failure: isFailure });
       }
     }
 
@@ -267,10 +267,10 @@ async function main() {
           notes: noteBits.join(" · ") || null,
           setCreate: setsFor.get(key)!.map((s, si) => ({
             order: si,
+            type: (s.drop ? "DROP" : s.failure ? "FAILURE" : "NORMAL") as SetType,
             reps: s.reps,
             seconds: s.seconds || null,
             weight: s.weight,
-            isDropSet: s.drop,
           })),
         };
       }),

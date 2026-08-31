@@ -9,11 +9,13 @@ import {
   type ExerciseLink,
   formatWeight,
   groupLinkedExercises,
+  isWorkingSet,
   LINK_HINTS,
   LINK_LABELS,
   linkedGroupLabel,
   roleLabel,
   roleShort,
+  SET_TYPE_SHORT,
   topSet,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
@@ -38,7 +40,7 @@ export function FinishedWorkoutView({
   const [pending, startTransition] = React.useTransition();
   const unit = workout.unit;
 
-  const working = workout.exercises.flatMap((e) => e.sets.filter((s) => !s.isWarmup));
+  const working = workout.exercises.flatMap((e) => e.sets.filter(isWorkingSet));
   const volume = working.reduce((n, s) => n + s.reps * s.weight, 0);
 
   return (
@@ -142,7 +144,7 @@ function ExerciseBlock({
     ? 0
     : we.sets.reduce((m, s) => Math.max(m, epley1RM(s.weight, s.reps)), 0);
   const top = topSet(
-    we.sets.map((s) => ({ reps: s.reps, weight: s.weight, isWarmup: s.isWarmup })),
+    we.sets.map((s) => ({ reps: s.reps, weight: s.weight, type: s.type })),
   );
   const longestHold = timed
     ? we.sets.reduce((m, s) => Math.max(m, s.seconds ?? 0), 0)
@@ -170,13 +172,15 @@ function ExerciseBlock({
             key={s.id}
             className="grid grid-cols-[2rem_1fr_1fr_auto] items-center gap-2 tabular-nums"
           >
-            <span className="text-muted-foreground">{s.isWarmup ? "W" : i + 1}</span>
+            <span className="text-muted-foreground">
+              {s.type === "WARMUP" ? "W" : i + 1}
+            </span>
             <span>{formatWeight(s.weight, unit)}</span>
             <span>{timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}</span>
             <span>
-              {s.isDropSet ? (
-                <Badge variant="ghost" className="text-xs">
-                  drop
+              {s.type === "DROP" || s.type === "FAILURE" ? (
+                <Badge variant="ghost" className="text-xs lowercase">
+                  {SET_TYPE_SHORT[s.type]}
                 </Badge>
               ) : null}
             </span>

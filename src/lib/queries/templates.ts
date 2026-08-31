@@ -24,7 +24,10 @@ export function getTemplate(userId: string, templateId: string) {
         include: {
           exercises: {
             orderBy: { order: "asc" },
-            include: { exercise: true },
+            include: {
+              exercise: true,
+              sets: { orderBy: { order: "asc" } },
+            },
           },
         },
       },

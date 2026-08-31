@@ -11,6 +11,8 @@ import {
   type ExerciseRole,
   LINK_VALUES,
   ROLE_VALUES,
+  SET_TYPE_VALUES,
+  type SetType,
 } from "@/lib/training";
 
 const EQUIPMENT = [
@@ -26,6 +28,7 @@ const EQUIPMENT = [
 
 const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
 const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
+const setTypeEnum = z.enum([...SET_TYPE_VALUES] as [string, ...string[]]);
 
 const workoutExerciseInclude = {
   exercise: true,
@@ -117,6 +120,7 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
           exercise: {
             select: { equipment: true, muscle: true, role: true, isTimed: true },
           },
+          sets: { orderBy: { order: "asc" } },
         },
       },
     },
@@ -134,15 +138,17 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
           exerciseId: te.exerciseId,
           muscle: te.muscle ?? te.exercise?.muscle ?? null,
           role: te.role ?? te.exercise?.role ?? null,
-          targetSets: te.targetSets,
+          targetSets: te.sets.length || null,
           targetReps: te.targetReps,
           order: i,
           equipment: te.exercise?.equipment ?? null,
           linkToNext: te.linkToNext,
           sets: {
-            create: Array.from({ length: Math.max(te.targetSets ?? 0, 0) }).map(
-              (_, s) => ({ order: s }),
-            ),
+            create: te.sets.map((ts, s) => ({
+              order: s,
+              type: ts.type,
+              targetReps: ts.targetReps ?? te.targetReps,
+            })),
           },
         })),
       },
@@ -361,7 +367,7 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
 
 // --- sets -----------------------------------------------------------------
 
-export async function addSet(workoutExerciseId: string, opts?: { isDropSet?: boolean }) {
+export async function addSet(workoutExerciseId: string, opts?: { type?: SetType }) {
   const userId = await getCurrentUserId();
   const workoutId = await assertOwnWorkoutExercise(userId, workoutExerciseId);
 
@@ -375,9 +381,9 @@ export async function addSet(workoutExerciseId: string, opts?: { isDropSet?: boo
     data: {
       workoutExerciseId,
       order: last ? last.order + 1 : 0,
+      type: (opts?.type ?? "NORMAL") as SetType,
       reps: last?.reps ?? 0,
       weight: last?.weight ?? 0,
-      isDropSet: opts?.isDropSet ?? false,
     },
   });
   revalidateWorkoutViews(workoutId);
@@ -386,11 +392,10 @@ export async function addSet(workoutExerciseId: string, opts?: { isDropSet?: boo
 
 const updateSetSchema = z.object({
   setId: z.string().min(1),
+  type: setTypeEnum.optional(),
   reps: z.number().int().min(0).max(1000).optional(),
   seconds: z.number().int().min(0).max(36000).nullable().optional(),
   weight: z.number().min(0).max(10000).optional(),
-  isDropSet: z.boolean().optional(),
-  isWarmup: z.boolean().optional(),
   rpe: z.number().min(0).max(10).nullable().optional(),
 });
 
@@ -402,11 +407,10 @@ export async function updateSet(input: z.infer<typeof updateSetSchema>) {
   await prisma.setEntry.update({
     where: { id: data.setId },
     data: {
+      type: data.type === undefined ? undefined : (data.type as SetType),
       reps: data.reps,
       seconds: data.seconds === undefined ? undefined : data.seconds,
       weight: data.weight,
-      isDropSet: data.isDropSet,
-      isWarmup: data.isWarmup,
       rpe: data.rpe === undefined ? undefined : data.rpe,
     },
   });

@@ -85,6 +85,17 @@ enum WeightUnit {
   LB
 }
 
+/// The kind of a single set — planned (in a template) or logged (in a workout).
+/// `NORMAL` is a straight working set; `WARMUP` is excluded from volume/PR math;
+/// `DROP` continues the previous set at a lighter load with no rest; `FAILURE`
+/// is taken to muscular failure.
+enum SetType {
+  WARMUP
+  NORMAL
+  DROP
+  FAILURE
+}
+
 /// The role a movement plays in a session: heavy compound, supporting compound,
 /// single-joint isolation, or low-stakes accessory volume.
 enum ExerciseRole {
@@ -169,11 +180,12 @@ model SetEntry {
   workoutExerciseId String
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
   order             Int             @default(0)
+  type              SetType         @default(NORMAL)
+  /// Rep target for this set, snapshotted from the template ("8-12", "AMRAP").
+  targetReps        String?
   reps              Int             @default(0)
   seconds           Int?
   weight            Float           @default(0)
-  isDropSet         Boolean         @default(false)
-  isWarmup          Boolean         @default(false)
   rpe               Float?
 
   @@index([workoutExerciseId])
@@ -207,7 +219,7 @@ model TemplateDay {
 }
 
 /// A planned slot in a template day: a `muscle` + `role` to hit, optionally with
-/// a default `exercise` pencilled in.
+/// a default `exercise` pencilled in. Its `sets` spell out the planned set list.
 model TemplateExercise {
   id            String        @id @default(cuid())
   templateDayId String
@@ -217,9 +229,24 @@ model TemplateExercise {
   muscle        String?
   role          ExerciseRole?
   order         Int           @default(0)
-  targetSets    Int?
+  /// Default rep target for every set that doesn't override it ("8-12").
   targetReps    String?
   linkToNext    ExerciseLink?
 
+  sets TemplateSet[]
+
   @@index([templateDayId])
+}
+
+/// One planned set within a template slot.
+model TemplateSet {
+  id                 String           @id @default(cuid())
+  templateExerciseId String
+  templateExercise   TemplateExercise @relation(fields: [templateExerciseId], references: [id], onDelete: Cascade)
+  order              Int              @default(0)
+  type               SetType          @default(NORMAL)
+  /// Per-set rep target; falls back to the slot's `targetReps` when null.
+  targetReps         String?
+
+  @@index([templateExerciseId])
 }
