@@ -348,7 +348,7 @@ const updateWeSchema = z.object({
 export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema>) {
   const userId = await getCurrentUserId();
   const data = updateWeSchema.parse(input);
-  const workoutId = await assertOwnWorkoutExercise(userId, data.workoutExerciseId);
+  await assertOwnWorkoutExercise(userId, data.workoutExerciseId);
 
   await prisma.workoutExercise.update({
     where: { id: data.workoutExerciseId },
@@ -361,7 +361,7 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
       notes: data.notes === undefined ? undefined : data.notes,
     },
   });
-  revalidateWorkoutViews(workoutId);
+  // No revalidate — see updateSet().
   return { ok: true as const };
 }
 
@@ -402,7 +402,7 @@ const updateSetSchema = z.object({
 export async function updateSet(input: z.infer<typeof updateSetSchema>) {
   const userId = await getCurrentUserId();
   const data = updateSetSchema.parse(input);
-  const workoutId = await assertOwnSet(userId, data.setId);
+  await assertOwnSet(userId, data.setId);
 
   await prisma.setEntry.update({
     where: { id: data.setId },
@@ -414,7 +414,8 @@ export async function updateSet(input: z.infer<typeof updateSetSchema>) {
       rpe: data.rpe === undefined ? undefined : data.rpe,
     },
   });
-  revalidateWorkoutViews(workoutId);
+  // No revalidate: an in-progress workout isn't shown on any other page, and the
+  // logger keeps its own state. finishWorkout() refreshes everything.
   return { ok: true as const };
 }
 

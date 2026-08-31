@@ -63,6 +63,7 @@ import {
   type PickerExercise,
 } from "@/components/workout/exercise-picker-dialog";
 import { getDefaultRest, restEvent } from "@/components/workout/rest-timer";
+import { WheelField } from "@/components/workout/wheel-field";
 
 type WE = FullWorkout["exercises"][number];
 type SetEntry = WE["sets"][number];
@@ -157,29 +158,27 @@ export function WorkoutLogger({
     });
   }
 
+  // Autosave is silent: no transition (so nothing gets disabled and the mobile
+  // keyboard is never dismissed mid-type) and errors just surface a toast.
   function saveSet(setId: string, patch: Partial<SetEntry>) {
-    startTransition(async () => {
-      await updateSet({
-        setId,
-        type: patch.type ?? undefined,
-        reps: patch.reps,
-        seconds: patch.seconds,
-        weight: patch.weight,
-      });
-    });
+    updateSet({
+      setId,
+      type: patch.type ?? undefined,
+      reps: patch.reps,
+      seconds: patch.seconds,
+      weight: patch.weight,
+    }).catch(() => toast.error("Couldn't save that set"));
   }
 
   function saveExercise(
     weId: string,
     patch: { equipment?: string | null; linkToNext?: ExerciseLink | null },
   ) {
-    startTransition(async () => {
-      await updateWorkoutExercise({
-        workoutExerciseId: weId,
-        equipment: patch.equipment as never,
-        linkToNext: patch.linkToNext,
-      });
-    });
+    updateWorkoutExercise({
+      workoutExerciseId: weId,
+      equipment: patch.equipment as never,
+      linkToNext: patch.linkToNext,
+    }).catch(() => toast.error("Couldn't save that change"));
   }
 
   function handleFinish() {
@@ -542,6 +541,7 @@ function ExerciseCard({
                   key={s.id}
                   set={s}
                   number={number}
+                  unit={unit}
                   defaultReps={we.targetReps}
                   timed={timed}
                   disabled={disabled}
@@ -595,6 +595,7 @@ const SET_TYPE_TONE: Record<SetType, string> = {
 function SetRow({
   set,
   number,
+  unit,
   defaultReps,
   timed,
   disabled,
@@ -604,6 +605,7 @@ function SetRow({
 }: {
   set: SetEntry;
   number: number | null;
+  unit: "KG" | "LB";
   defaultReps: string | null;
   timed: boolean;
   disabled: boolean;
@@ -639,6 +641,12 @@ function SetRow({
     timer.current = window.setTimeout(flush, 450);
   }
 
+  /** A single committed value (from the mobile picker) — save right away. */
+  function commit(patch: Partial<SetEntry>) {
+    onPatch(patch);
+    onSave(patch);
+  }
+
   const token = set.type === "NORMAL" ? (number ?? "•") : SET_TYPE_CODE[set.type];
 
   return (
@@ -652,7 +660,6 @@ function SetRow({
       >
         <SelectTrigger
           size="sm"
-          disabled={disabled}
           aria-label={`Set type — ${SET_TYPE_LABELS[set.type]}`}
           className={cn(
             "h-9 w-full justify-center px-1.5 font-semibold tabular-nums",
@@ -669,14 +676,12 @@ function SetRow({
           ))}
         </SelectContent>
       </Select>
-      <Input
-        type="number"
-        inputMode="decimal"
-        step="0.5"
-        min="0"
-        defaultValue={set.weight || ""}
-        disabled={disabled}
-        onChange={(e) => change({ weight: Number(e.target.value) || 0 })}
+      <WheelField
+        kind="weight"
+        value={set.weight}
+        unit={unit}
+        onInput={(w) => change({ weight: w })}
+        onPick={(w) => commit({ weight: w })}
         onBlur={flush}
       />
       {timed ? (
@@ -687,14 +692,13 @@ function SetRow({
           onFlush={flush}
         />
       ) : (
-        <Input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          defaultValue={set.reps || ""}
+        <WheelField
+          kind="reps"
+          value={set.reps}
+          unit={unit}
           placeholder={set.targetReps ?? defaultReps ?? ""}
-          disabled={disabled}
-          onChange={(e) => change({ reps: Number(e.target.value) || 0 })}
+          onInput={(r) => change({ reps: r })}
+          onPick={(r) => commit({ reps: r })}
           onBlur={flush}
         />
       )}
