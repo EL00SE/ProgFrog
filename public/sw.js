@@ -1,7 +1,7 @@
 /* ProgFrog service worker — minimal, hand-rolled.
  * Goals: make the app installable and degrade gracefully offline.
  * Bump CACHE_VERSION whenever this file's caching rules change. */
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `progfrog-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `progfrog-pages-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -33,7 +33,29 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data === "SKIP_WAITING") self.skipWaiting();
+  const data = event.data;
+  if (data === "SKIP_WAITING") self.skipWaiting();
+
+  // The app asks us to stash a page (the active workout) so "Resume" works
+  // even if that URL was never opened online.
+  if (data && data.type === "cache-page" && typeof data.url === "string") {
+    const url = new URL(data.url, self.location.origin);
+    if (url.origin !== self.location.origin) return;
+    event.waitUntil(
+      Promise.all([
+        caches.open(PAGE_CACHE).then((cache) =>
+          fetch(url.href, { credentials: "same-origin", redirect: "manual" })
+            .then((res) => {
+              // Only cache a real page — not a redirect to sign-in.
+              if (res && res.ok && res.type !== "opaqueredirect") {
+                return cache.put(url.href, res);
+              }
+            })
+            .catch(() => {}),
+        ),
+      ]),
+    );
+  }
 });
 
 function isImmutableAsset(url) {
