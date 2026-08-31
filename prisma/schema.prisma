@@ -16,17 +16,20 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String?
-  email         String    @unique
+  email         String     @unique
   emailVerified DateTime?
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  weightUnit    WeightUnit @default(KG)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  posts    Post[]
+  accounts  Account[]
+  sessions  Session[]
+  exercises Exercise[]
+  workouts  Workout[]
+  templates Template[]
 }
 
 model Account {
@@ -63,18 +66,152 @@ model VerificationToken {
 }
 
 // ---------------------------------------------------------------------------
-// Example domain model — delete or replace when you start a real project.
+// Workout tracking
 // ---------------------------------------------------------------------------
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum Equipment {
+  BARBELL
+  DUMBBELL
+  MACHINE
+  CABLE
+  BODYWEIGHT
+  KETTLEBELL
+  BAND
+  OTHER
+}
 
-  @@index([authorId])
+enum WeightUnit {
+  KG
+  LB
+}
+
+/// The role a movement plays in a session: heavy compound, supporting compound,
+/// single-joint isolation, or low-stakes accessory volume.
+enum ExerciseRole {
+  MAIN
+  SECONDARY
+  ISOLATION
+  ACCESSORY
+}
+
+/// Exercise catalog. `ownerId == null` is a global seeded exercise visible to
+/// everyone; a set `ownerId` is a private custom exercise for that one user.
+model Exercise {
+  id         String        @id @default(cuid())
+  name       String
+  equipment  Equipment     @default(BARBELL)
+  muscle     String?
+  role       ExerciseRole?
+  isTimed    Boolean       @default(false)
+  ownerId    String?
+  owner      User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isArchived Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  workoutExercises  WorkoutExercise[]
+  templateExercises TemplateExercise[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+}
+
+model Workout {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime     @default(now())
+  name          String?
+  notes         String?
+  unit          WeightUnit   @default(KG)
+  finishedAt    DateTime?
+  templateDayId String?
+  templateDay   TemplateDay? @relation(fields: [templateDayId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  exercises WorkoutExercise[]
+
+  @@index([userId, date])
+}
+
+/// One entry in a workout. It is a "slot": it always carries a `muscle` + `role`
+/// snapshot, and optionally names the specific `exercise` that filled it.
+model WorkoutExercise {
+  id            String        @id @default(cuid())
+  workoutId     String
+  workout       Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId    String?
+  exercise      Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  muscle        String?
+  role          ExerciseRole?
+  targetSets    Int?
+  targetReps    String?
+  order         Int           @default(0)
+  equipment     Equipment?
+  supersetGroup Int?
+  notes         String?
+
+  sets SetEntry[]
+
+  @@index([workoutId])
+}
+
+model SetEntry {
+  id                String          @id @default(cuid())
+  workoutExerciseId String
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  order             Int             @default(0)
+  reps              Int             @default(0)
+  seconds           Int?
+  weight            Float           @default(0)
+  isDropSet         Boolean         @default(false)
+  isWarmup          Boolean         @default(false)
+  rpe               Float?
+
+  @@index([workoutExerciseId])
+}
+
+model Template {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  days TemplateDay[]
+
+  @@index([userId])
+}
+
+model TemplateDay {
+  id         String   @id @default(cuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name       String
+  order      Int      @default(0)
+
+  exercises TemplateExercise[]
+  workouts  Workout[]
+
+  @@index([templateId])
+}
+
+/// A planned slot in a template day: a `muscle` + `role` to hit, optionally with
+/// a default `exercise` pencilled in.
+model TemplateExercise {
+  id            String        @id @default(cuid())
+  templateDayId String
+  templateDay   TemplateDay   @relation(fields: [templateDayId], references: [id], onDelete: Cascade)
+  exerciseId    String?
+  exercise      Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  muscle        String?
+  role          ExerciseRole?
+  order         Int           @default(0)
+  targetSets    Int?
+  targetReps    String?
+  supersetGroup Int?
+
+  @@index([templateDayId])
 }
