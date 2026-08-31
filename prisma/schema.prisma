@@ -179,6 +179,8 @@ model Workout {
 /// snapshot, and optionally names the specific `exercise` that filled it.
 model WorkoutExercise {
   id            String        @id @default(cuid())
+  /// Idempotency key from the offline outbox — lets a replayed create no-op.
+  clientId      String?       @unique
   workoutId     String
   workout       Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exerciseId    String?
@@ -199,6 +201,8 @@ model WorkoutExercise {
 
 model SetEntry {
   id                String          @id @default(cuid())
+  /// Idempotency key from the offline outbox — lets a replayed create no-op.
+  clientId          String?         @unique
   workoutExerciseId String
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
   order             Int             @default(0)

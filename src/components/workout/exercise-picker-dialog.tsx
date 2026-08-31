@@ -30,6 +30,7 @@ export type PickerExercise = {
   name: string;
   equipment: string;
   muscle: string | null;
+  isTimed?: boolean;
 };
 
 export function ExercisePickerDialog({

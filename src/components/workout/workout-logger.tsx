@@ -39,13 +39,7 @@ import {
   type SetType,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
-import {
-  addExerciseToWorkout,
-  addSlotToWorkout,
-  assignWorkoutEntryExercise,
-  deleteWorkout,
-  finishWorkout,
-} from "@/lib/actions/workouts";
+import { deleteWorkout, finishWorkout } from "@/lib/actions/workouts";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { outbox, useOutboxStatus } from "@/lib/offline-queue";
 import { cn } from "@/lib/utils";
@@ -138,7 +132,44 @@ function clearSnapshot(workoutId: string) {
 }
 
 let tmpSeq = 0;
-const tmpSetId = () => `local_${Date.now().toString(36)}_${tmpSeq++}`;
+const tmpSetId = () => `local_s_${Date.now().toString(36)}_${tmpSeq++}`;
+const tmpWeId = () => `local_e_${Date.now().toString(36)}_${tmpSeq++}`;
+
+/** Build an optimistic WorkoutExercise for the logger's local state. */
+function optimisticWE(
+  id: string,
+  order: number,
+  opts: {
+    exercise?: PickerExercise;
+    muscle?: string | null;
+    role?: string | null;
+  },
+): WE {
+  const ex = opts.exercise;
+  return {
+    id,
+    workoutId: "",
+    exerciseId: ex?.id ?? null,
+    exercise: ex
+      ? {
+          id: ex.id,
+          name: ex.name,
+          equipment: ex.equipment,
+          muscle: ex.muscle,
+          isTimed: ex.isTimed ?? false,
+        }
+      : null,
+    muscle: opts.muscle ?? ex?.muscle ?? null,
+    role: opts.role ?? null,
+    targetSets: null,
+    targetReps: null,
+    order,
+    equipment: ex?.equipment ?? null,
+    linkToNext: null,
+    notes: null,
+    sets: [],
+  } as unknown as WE;
+}
 
 /** What a fresh set should start at — matches the server's addSet() seeding. */
 function seedSet(we: WE, type: SetType, prev: PrevMap): { weight: number; reps: number } {
@@ -175,13 +206,13 @@ export function WorkoutLogger({
     return () => clearTimeout(t);
   }, [workout.id, exercises]);
 
-  // When a queued "add set" finally syncs, swap its temp id for the real one.
+  // When a queued create (set or exercise) syncs, swap its temp id for the real one.
   React.useEffect(
     () =>
       outbox.onSwap((tempId, realId) =>
         setExercises((list) =>
           list.map((e) => ({
-            ...e,
+            ...(e.id === tempId ? { ...e, id: realId } : e),
             sets: e.sets.map((s) => (s.id === tempId ? { ...s, id: realId } : s)),
           })),
         ),
@@ -205,33 +236,44 @@ export function WorkoutLogger({
     );
   }
 
-  // Adding / swapping an exercise still needs a connection (the picker isn't
-  // usable offline anyway) — set logging below works with no network.
-  function requireOnline(): boolean {
-    if (online) return true;
-    toast.error("Reconnect to change exercises — your sets are still being saved.");
-    return false;
+  function handlePick(exerciseId: string, exercise?: PickerExercise) {
+    const tempId = tmpWeId();
+    setExercises((list) => [...list, optimisticWE(tempId, list.length, { exercise })]);
+    outbox.addExercise(tempId, { workoutId: workout.id, exerciseId });
   }
 
-  async function handlePick(exerciseId: string) {
-    if (!requireOnline()) return;
-    const created = await addExerciseToWorkout({ workoutId: workout.id, exerciseId });
-    setExercises((prev) => [...prev, created as WE]);
+  function handleAddSlot(slot: { muscle: string; role: string }) {
+    const tempId = tmpWeId();
+    setExercises((list) => [
+      ...list,
+      optimisticWE(tempId, list.length, { muscle: slot.muscle, role: slot.role }),
+    ]);
+    outbox.addSlot(tempId, { workoutId: workout.id, ...slot });
   }
 
-  async function handleAddSlot(slot: { muscle: string; role: string }) {
-    if (!requireOnline()) return;
-    const created = await addSlotToWorkout({ workoutId: workout.id, ...slot });
-    setExercises((prev) => [...prev, created as WE]);
-  }
-
-  async function handleAssign(weId: string, exerciseId: string) {
-    if (!requireOnline()) return;
-    const updated = await assignWorkoutEntryExercise({
-      workoutExerciseId: weId,
-      exerciseId,
-    });
-    patchExercise(weId, updated as Partial<WE>);
+  function handleAssign(weId: string, exerciseId: string, exercise?: PickerExercise) {
+    setExercises((list) =>
+      list.map((e) =>
+        e.id === weId
+          ? {
+              ...e,
+              exerciseId,
+              equipment: (exercise?.equipment ?? e.equipment) as WE["equipment"],
+              exercise: exercise
+                ? ({
+                    ...(e.exercise ?? {}),
+                    id: exercise.id,
+                    name: exercise.name,
+                    equipment: exercise.equipment,
+                    muscle: exercise.muscle,
+                    isTimed: exercise.isTimed ?? false,
+                  } as WE["exercise"])
+                : e.exercise,
+            }
+          : e,
+      ),
+    );
+    outbox.assignExercise({ workoutExerciseId: weId, exerciseId });
   }
 
   function handleRemoveExercise(weId: string) {
@@ -421,7 +463,8 @@ export function WorkoutLogger({
           onPatchSet: (setId: string, patch: Partial<SetEntry>) =>
             patchSet(we.id, setId, patch),
           onSaveSet: saveSet,
-          onAssign: (exerciseId: string) => handleAssign(we.id, exerciseId),
+          onAssign: (exerciseId: string, exercise?: PickerExercise) =>
+            handleAssign(we.id, exerciseId, exercise),
           onSetLink: (link: ExerciseLink | null) => {
             patchExercise(we.id, { linkToNext: link });
             saveExercise(we.id, { linkToNext: link });
@@ -567,7 +610,7 @@ function ExerciseCard({
   onDeleteSet: (setId: string) => void;
   onPatchSet: (setId: string, patch: Partial<SetEntry>) => void;
   onSaveSet: (setId: string, patch: Partial<SetEntry>) => void;
-  onAssign: (exerciseId: string) => void | Promise<void>;
+  onAssign: (exerciseId: string, exercise?: PickerExercise) => void | Promise<void>;
   onSetLink: (link: ExerciseLink | null) => void;
   onSetEquipment: (equipment: string) => void;
 }) {

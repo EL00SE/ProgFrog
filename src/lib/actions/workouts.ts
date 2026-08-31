@@ -290,12 +290,22 @@ const addExerciseSchema = z.object({
   workoutId: z.string().min(1),
   exerciseId: z.string().min(1),
   linkToNext: linkEnum.nullable().optional(),
+  /** idempotency key from the offline outbox */
+  clientId: z.string().min(1).max(60).optional(),
 });
 
 export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSchema>) {
   const userId = await getCurrentUserId();
   const data = addExerciseSchema.parse(input);
   await assertOwnWorkout(userId, data.workoutId);
+
+  if (data.clientId) {
+    const existing = await prisma.workoutExercise.findUnique({
+      where: { clientId: data.clientId },
+      include: workoutExerciseInclude,
+    });
+    if (existing) return existing; // replayed create — no-op
+  }
 
   const exercise = await prisma.exercise.findFirst({
     where: {
@@ -317,6 +327,7 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
       order: count,
       equipment: exercise.equipment,
       linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
+      clientId: data.clientId,
     },
     include: workoutExerciseInclude,
   });
@@ -329,6 +340,7 @@ const addSlotSchema = z.object({
   workoutId: z.string().min(1),
   muscle: z.string().trim().max(40),
   role: roleEnum,
+  clientId: z.string().min(1).max(60).optional(),
 });
 
 /** Add an exercise-less slot (muscle + role) to fill in later. */
@@ -336,6 +348,14 @@ export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
   const userId = await getCurrentUserId();
   const data = addSlotSchema.parse(input);
   await assertOwnWorkout(userId, data.workoutId);
+
+  if (data.clientId) {
+    const existing = await prisma.workoutExercise.findUnique({
+      where: { clientId: data.clientId },
+      include: workoutExerciseInclude,
+    });
+    if (existing) return existing;
+  }
 
   const count = await prisma.workoutExercise.count({
     where: { workoutId: data.workoutId },
@@ -347,6 +367,7 @@ export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
       muscle: data.muscle,
       role: data.role as ExerciseRole,
       order: count,
+      clientId: data.clientId,
     },
     include: workoutExerciseInclude,
   });
@@ -392,8 +413,10 @@ export async function assignWorkoutEntryExercise(input: z.infer<typeof assignSch
 
 export async function removeWorkoutExercise(workoutExerciseId: string) {
   const userId = await getCurrentUserId();
-  await assertOwnWorkoutExercise(userId, workoutExerciseId);
-  await prisma.workoutExercise.delete({ where: { id: workoutExerciseId } });
+  // deleteMany (not delete) so a replayed removal after it's already gone no-ops.
+  await prisma.workoutExercise.deleteMany({
+    where: { id: workoutExerciseId, workout: { userId } },
+  });
   // No revalidate — the logger owns its state; see updateSet().
   return { ok: true as const };
 }
@@ -416,15 +439,13 @@ export async function reorderWorkoutExercises(
     select: { id: true },
   });
   const ownedIds = new Set(owned.map((e) => e.id));
-  if (
-    data.orderedIds.length !== owned.length ||
-    data.orderedIds.some((id) => !ownedIds.has(id))
-  ) {
-    throw new Error("Order doesn't match this workout");
-  }
+  // Apply the order for whatever we still own — an id may have been removed
+  // between the reorder being queued offline and this replay.
+  const ordered = data.orderedIds.filter((id) => ownedIds.has(id));
+  if (ordered.length === 0) return { ok: true as const };
 
   await prisma.$transaction(
-    data.orderedIds.map((id, order) =>
+    ordered.map((id, order) =>
       prisma.workoutExercise.update({ where: { id }, data: { order } }),
     ),
   );
@@ -461,8 +482,19 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
 
 // --- sets -----------------------------------------------------------------
 
-export async function addSet(workoutExerciseId: string, opts?: { type?: SetType }) {
+export async function addSet(
+  workoutExerciseId: string,
+  opts?: { type?: SetType; clientId?: string },
+) {
   const userId = await getCurrentUserId();
+
+  if (opts?.clientId) {
+    const existing = await prisma.setEntry.findUnique({
+      where: { clientId: opts.clientId },
+    });
+    if (existing) return existing; // replayed create — no-op
+  }
+
   const we = await prisma.workoutExercise.findFirst({
     where: { id: workoutExerciseId, workout: { userId } },
     select: { exerciseId: true },
@@ -512,6 +544,7 @@ export async function addSet(workoutExerciseId: string, opts?: { type?: SetType 
       type,
       reps: seedReps,
       weight,
+      clientId: opts?.clientId,
     },
   });
   // No revalidate — the logger owns its state; see updateSet().
@@ -549,8 +582,10 @@ export async function updateSet(input: z.infer<typeof updateSetSchema>) {
 
 export async function deleteSet(setId: string) {
   const userId = await getCurrentUserId();
-  await assertOwnSet(userId, setId);
-  await prisma.setEntry.delete({ where: { id: setId } });
+  // deleteMany so a replayed delete after it's already gone no-ops.
+  await prisma.setEntry.deleteMany({
+    where: { id: setId, workoutExercise: { workout: { userId } } },
+  });
   // No revalidate — the logger owns its state; see updateSet().
   return { ok: true as const };
 }

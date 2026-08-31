@@ -3,7 +3,10 @@
 import * as React from "react";
 
 import {
+  addExerciseToWorkout,
   addSet,
+  addSlotToWorkout,
+  assignWorkoutEntryExercise,
   deleteSet,
   removeWorkoutExercise,
   reorderWorkoutExercises,
@@ -15,8 +18,13 @@ import {
 /**
  * A durable outbox for the workout logger. Mutations are applied to local React
  * state immediately by the caller; here we persist the intent to localStorage
- * and replay it against the server, retrying while the connection is down. Set
- * edits keep working with no network at all.
+ * and replay it against the server, retrying while the connection is down.
+ *
+ * Optimistic creates use a `local_*` id; once the create syncs, `remap` holds
+ * `local -> real` and later jobs that reference the temp id are rewritten before
+ * they run (the queue is FIFO, so a parent always syncs before its children).
+ * Every create also passes its temp id to the server as an idempotency key, so a
+ * job that gets replayed after a crash no-ops instead of duplicating.
  */
 
 type Job =
@@ -28,7 +36,22 @@ type Job =
       kind: "reorderWorkoutExercises";
       args: Parameters<typeof reorderWorkoutExercises>[0];
     }
-  | { kind: "addSet"; tempId: string; args: { workoutExerciseId: string; type?: string } }
+  | { kind: "assignExercise"; args: { workoutExerciseId: string; exerciseId: string } }
+  | {
+      kind: "addSet";
+      tempId: string;
+      args: { workoutExerciseId: string; type?: string };
+    }
+  | {
+      kind: "addExercise";
+      tempId: string;
+      args: { workoutId: string; exerciseId: string };
+    }
+  | {
+      kind: "addSlot";
+      tempId: string;
+      args: { workoutId: string; muscle: string; role: string };
+    }
   | { kind: "finishWorkout"; args: { workoutId: string } };
 
 type QueuedJob = Job & { qid: string };
@@ -42,7 +65,7 @@ let flushing = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
 
-/** temp set id -> real id, once addSet has synced. Callers subscribe to swap. */
+/** temp id -> real id, once a create has synced. Callers subscribe to swap. */
 const swapListeners = new Set<(tempId: string, realId: string) => void>();
 
 function load(): QueuedJob[] {
@@ -68,13 +91,41 @@ function isOnline() {
   return typeof navigator === "undefined" || navigator.onLine;
 }
 
-/** Rewrite any reference to a temp set id that has since been assigned a real one. */
+const isTemp = (id: string) => id.startsWith("local_");
+
+/** Rewrite any temp id that has since been assigned a real one. */
 function resolveIds(job: QueuedJob): QueuedJob {
   const fix = (id: string) => remap[id] ?? id;
-  if (job.kind === "updateSet")
-    return { ...job, args: { ...job.args, setId: fix(job.args.setId) } };
-  if (job.kind === "deleteSet") return { ...job, args: { setId: fix(job.args.setId) } };
-  return job;
+  switch (job.kind) {
+    case "updateSet":
+      return { ...job, args: { ...job.args, setId: fix(job.args.setId) } };
+    case "deleteSet":
+      return { ...job, args: { setId: fix(job.args.setId) } };
+    case "removeWorkoutExercise":
+      return { ...job, args: { id: fix(job.args.id) } };
+    case "updateWorkoutExercise":
+      return {
+        ...job,
+        args: { ...job.args, workoutExerciseId: fix(job.args.workoutExerciseId) },
+      };
+    case "assignExercise":
+      return {
+        ...job,
+        args: { ...job.args, workoutExerciseId: fix(job.args.workoutExerciseId) },
+      };
+    case "addSet":
+      return {
+        ...job,
+        args: { ...job.args, workoutExerciseId: fix(job.args.workoutExerciseId) },
+      };
+    case "reorderWorkoutExercises":
+      return {
+        ...job,
+        args: { ...job.args, orderedIds: job.args.orderedIds.map(fix) },
+      };
+    default:
+      return job;
+  }
 }
 
 async function run(job: QueuedJob): Promise<void> {
@@ -94,18 +145,43 @@ async function run(job: QueuedJob): Promise<void> {
     case "reorderWorkoutExercises":
       await reorderWorkoutExercises(job.args);
       return;
+    case "assignExercise":
+      await assignWorkoutEntryExercise(job.args);
+      return;
     case "addSet": {
       const created = await addSet(job.args.workoutExerciseId, {
         type: job.args.type as never,
+        clientId: job.tempId,
       });
-      remap[job.tempId] = created.id;
-      swapListeners.forEach((l) => l(job.tempId, created.id));
+      finishCreate(job.tempId, created.id);
+      return;
+    }
+    case "addExercise": {
+      const created = await addExerciseToWorkout({
+        ...job.args,
+        clientId: job.tempId,
+      });
+      finishCreate(job.tempId, created.id);
+      return;
+    }
+    case "addSlot": {
+      const created = await addSlotToWorkout({
+        ...job.args,
+        role: job.args.role as never,
+        clientId: job.tempId,
+      });
+      finishCreate(job.tempId, created.id);
       return;
     }
     case "finishWorkout":
       await syncFinishWorkout(job.args.workoutId);
       return;
   }
+}
+
+function finishCreate(tempId: string, realId: string) {
+  remap[tempId] = realId;
+  swapListeners.forEach((l) => l(tempId, realId));
 }
 
 /** Network failures look like TypeError("Failed to fetch") from the RSC call. */
@@ -161,6 +237,25 @@ function enqueue(job: Job) {
   void flush();
 }
 
+/** Drop a queued create for `tempId` plus every later job that depends on it. */
+function cancelPendingCreate(tempId: string) {
+  queue = queue.filter((j) => {
+    if (
+      (j.kind === "addSet" || j.kind === "addExercise" || j.kind === "addSlot") &&
+      j.tempId === tempId
+    ) {
+      return false;
+    }
+    if (j.kind === "updateSet" || j.kind === "deleteSet") return j.args.setId !== tempId;
+    if (j.kind === "updateWorkoutExercise" || j.kind === "assignExercise") {
+      return j.args.workoutExerciseId !== tempId;
+    }
+    if (j.kind === "addSet") return j.args.workoutExerciseId !== tempId;
+    return true;
+  });
+  persist();
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => void flush());
   window.addEventListener("visibilitychange", () => {
@@ -176,22 +271,31 @@ export const outbox = {
     enqueue({ kind: "updateWorkoutExercise", args }),
   addSet: (tempId: string, args: { workoutExerciseId: string; type?: string }) =>
     enqueue({ kind: "addSet", tempId, args }),
+  addExercise: (tempId: string, args: { workoutId: string; exerciseId: string }) =>
+    enqueue({ kind: "addExercise", tempId, args }),
+  addSlot: (tempId: string, args: { workoutId: string; muscle: string; role: string }) =>
+    enqueue({ kind: "addSlot", tempId, args }),
+  assignExercise: (args: { workoutExerciseId: string; exerciseId: string }) =>
+    enqueue({ kind: "assignExercise", args }),
   deleteSet: (setId: string) => {
-    // Never-synced set: cancel its pending create instead of deleting server-side.
-    const addIdx = queue.findIndex((j) => j.kind === "addSet" && j.tempId === setId);
-    if (addIdx !== -1) {
-      queue = queue.filter(
-        (j, i) =>
-          i !== addIdx &&
-          !((j.kind === "updateSet" || j.kind === "deleteSet") && j.args.setId === setId),
-      );
-      persist();
+    if (isTemp(setId) && queue.some((j) => j.kind === "addSet" && j.tempId === setId)) {
+      cancelPendingCreate(setId);
       return;
     }
     enqueue({ kind: "deleteSet", args: { setId } });
   },
-  removeWorkoutExercise: (id: string) =>
-    enqueue({ kind: "removeWorkoutExercise", args: { id } }),
+  removeWorkoutExercise: (id: string) => {
+    if (
+      isTemp(id) &&
+      queue.some(
+        (j) => (j.kind === "addExercise" || j.kind === "addSlot") && j.tempId === id,
+      )
+    ) {
+      cancelPendingCreate(id);
+      return;
+    }
+    enqueue({ kind: "removeWorkoutExercise", args: { id } });
+  },
   reorderWorkoutExercises: (args: Parameters<typeof reorderWorkoutExercises>[0]) =>
     enqueue({ kind: "reorderWorkoutExercises", args }),
   finishWorkout: (workoutId: string) =>
