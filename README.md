@@ -69,21 +69,31 @@ console (fine for local dev). `pnpm db:seed` creates a `demo@example.com` user.
 
 **OAuth providers** are all optional and only appear once their `_ID` / `_SECRET`
 pair is set (`AUTH_GOOGLE_*`, `AUTH_FACEBOOK_*`, `AUTH_TWITTER_*` — Auth.js reads
-them by name). Callback URLs for the `:3001` dev port:
+them by name).
 
-- Google — <https://console.cloud.google.com/apis/credentials> → `…/api/auth/callback/google`
-- Facebook — <https://developers.facebook.com/apps> → `…/api/auth/callback/facebook`
-  (the `email` permission needs Meta App Review before non-testers can use it)
-- X / Twitter — <https://developer.x.com> → `…/api/auth/callback/twitter`
-  (OAuth 2.0; X returns **no** email, so those accounts have no address on file —
-  `User.email` is nullable for this reason)
+For **each** provider, register **both** callback URLs on the provider's console
+(they all accept a list — you don't pick one):
+
+|                                    | dev                                                  | production                                                 |
+| ---------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| redirect / callback URL            | `http://localhost:3001/api/auth/callback/<provider>` | `https://progfrog.vercel.app/api/auth/callback/<provider>` |
+| JS origin (where the console asks) | `http://localhost:3001`                              | `https://progfrog.vercel.app`                              |
+
+`<provider>` is `google`, `facebook`, or `twitter`. Then paste the ID/secret into
+`.env` (dev) and the Vercel project's env vars (prod).
+
+- Google — <https://console.cloud.google.com/apis/credentials>
+- Facebook — <https://developers.facebook.com/apps> (the `email` permission needs
+  Meta App Review before non-testers can use it)
+- X / Twitter — <https://developer.x.com> (OAuth 2.0; X returns **no** email, so
+  those accounts have no address on file — `User.email` is nullable for this)
 
 Same email across Google/Facebook resolves to one account
 (`allowDangerousEmailAccountLinking`, safe because both verify email ownership).
 A `JWTSessionError: no matching decryption secret` means a stale cookie from
-another app on the same port or a changed `AUTH_SECRET` — clear site data. In
-production set `AUTH_URL` + `APP_URL` to the deployed origin and add the
-deployed-domain callback URLs.
+another app on the same port or a changed `AUTH_SECRET` — clear site data. A
+`redirect_uri_mismatch` means the URL above isn't registered for that provider.
+In production also set `AUTH_URL` + `APP_URL` to the deployed origin.
 
 ## Scripts
 
