@@ -6,6 +6,7 @@ import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { EQUIPMENT_LABELS, MUSCLE_GROUPS } from "@/lib/training";
+import { cn } from "@/lib/utils";
 import {
   createCustomExercise,
   setExerciseArchived,
@@ -173,24 +174,27 @@ function ExerciseRow({
   const isArchived = "isArchived" in exercise && exercise.isArchived;
 
   return (
-    <Card size="sm">
-      <CardContent className="flex items-center justify-between gap-2 py-1">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {exercise.name}
-            {isArchived ? (
-              <span className="text-muted-foreground"> (archived)</span>
-            ) : null}
-          </p>
-          <div className="mt-0.5 flex flex-wrap gap-1.5">
-            {exercise.muscle ? (
-              <Badge variant="secondary">{exercise.muscle}</Badge>
-            ) : null}
-            <Badge variant="ghost">{EQUIPMENT_LABELS[exercise.equipment]}</Badge>
-          </div>
-        </div>
+    <Card size="sm" className="py-0">
+      <CardContent className="flex items-center gap-2 py-1.5">
+        <span
+          className={cn(
+            "truncate text-sm font-medium",
+            isArchived && "text-muted-foreground",
+          )}
+        >
+          {exercise.name}
+          {isArchived ? " (archived)" : null}
+        </span>
+        {exercise.muscle ? (
+          <Badge variant="secondary" className="shrink-0">
+            {exercise.muscle}
+          </Badge>
+        ) : null}
+        <span className="text-muted-foreground ms-auto shrink-0 text-xs">
+          {EQUIPMENT_LABELS[exercise.equipment]}
+        </span>
         {editable ? (
-          <div className="flex shrink-0 gap-1">
+          <div className="-me-1 flex shrink-0">
             <ExerciseFormDialog
               exercise={exercise as CustomExercise}
               onSaved={onSaved}

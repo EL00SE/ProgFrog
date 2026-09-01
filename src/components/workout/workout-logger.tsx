@@ -30,6 +30,7 @@ import {
   LINK_HINTS,
   LINK_LABELS,
   LINK_OPTION_LABELS,
+  LINK_TRIGGER_LABELS,
   linkedGroupLabel,
   roleLabel,
   roleShort,
@@ -40,12 +41,22 @@ import {
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import { deleteWorkout, finishWorkout } from "@/lib/actions/workouts";
+import { haptic } from "@/lib/haptics";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { outbox, useOutboxStatus } from "@/lib/offline-queue";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -210,6 +221,7 @@ export function WorkoutLogger({
     loadSnapshot(workout.id, workout.exercises),
   );
   const [busy, startTransition] = React.useTransition();
+  const [confirmDiscard, setConfirmDiscard] = React.useState(false);
   const unit = workout.unit;
 
   // Persist local state so a reload (from the cached page, offline) keeps edits.
@@ -370,6 +382,7 @@ export function WorkoutLogger({
       toast.error("Add at least one exercise first");
       return;
     }
+    haptic([30, 60, 30]);
     if (online && syncPending === 0) {
       clearSnapshot(workout.id);
       startTransition(() => finishWorkout(workout.id));
@@ -387,7 +400,7 @@ export function WorkoutLogger({
   }
 
   function handleDiscard() {
-    if (!confirm("Discard this workout and everything logged in it?")) return;
+    setConfirmDiscard(false);
     if (!online) {
       toast.error("Reconnect to discard this workout.");
       return;
@@ -404,8 +417,15 @@ export function WorkoutLogger({
   const totalVolume = working.reduce((x, s) => x + s.reps * s.weight, 0);
   const doneCount = exercises.filter(isExerciseDone).length;
 
+  // A short buzz whenever another exercise crosses into "done".
+  const prevDoneCount = React.useRef(doneCount);
+  React.useEffect(() => {
+    if (doneCount > prevDoneCount.current) haptic(18);
+    prevDoneCount.current = doneCount;
+  }, [doneCount]);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 pb-14 sm:pb-0">
       {(!online || syncPending > 0) && (
         <div
           className={cn(
@@ -551,19 +571,49 @@ export function WorkoutLogger({
         />
       </div>
 
-      <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row">
+      <div className="mt-2 flex flex-col items-center gap-1">
         <Button
-          variant="destructive"
-          onClick={handleDiscard}
+          onClick={handleFinish}
           disabled={pending}
-          className="sm:w-auto"
+          size="lg"
+          className="w-full sm:w-auto sm:self-stretch"
         >
-          <Trash2 className="size-4" /> Discard
-        </Button>
-        <Button onClick={handleFinish} disabled={pending} className="sm:flex-1">
           <Check className="size-4" /> Finish workout
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setConfirmDiscard(true)}
+          disabled={pending}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          Discard workout
+        </Button>
       </div>
+
+      <Dialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Discard this workout?</DialogTitle>
+            <DialogDescription>
+              Everything logged in it will be deleted. This can&rsquo;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row sm:justify-end">
+            <DialogClose asChild>
+              <Button className="sm:order-2">Keep logging</Button>
+            </DialogClose>
+            <Button
+              variant="ghost"
+              onClick={handleDiscard}
+              disabled={pending}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:order-1"
+            >
+              <Trash2 className="size-4" /> Discard workout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -780,9 +830,9 @@ function ExerciseCard({
             }
           />
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={we.equipment ?? "BARBELL"} onValueChange={onSetEquipment}>
-              <SelectTrigger size="sm" className="min-w-32 flex-1 sm:flex-none">
+              <SelectTrigger size="sm" className="min-w-28 flex-1 sm:flex-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -800,10 +850,12 @@ function ExerciseCard({
             >
               <SelectTrigger
                 size="sm"
-                className="min-w-40 flex-1"
+                className="min-w-32 flex-1 sm:flex-none"
                 aria-label="What to do after this exercise"
               >
-                <SelectValue />
+                <SelectValue aria-label={we.linkToNext ?? "none"}>
+                  {LINK_TRIGGER_LABELS[we.linkToNext ?? "NONE"]}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">{LINK_OPTION_LABELS.NONE}</SelectItem>
@@ -812,47 +864,51 @@ function ExerciseCard({
               </SelectContent>
             </Select>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={disabled}
-              onClick={() => window.dispatchEvent(restEvent(getDefaultRest()))}
-            >
-              <Timer className="size-3.5" /> Rest
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={() => window.dispatchEvent(restEvent(getDefaultRest()))}
+              >
+                <Timer className="size-3.5" /> Rest
+              </Button>
 
-            {(we.muscle || we.role) && (
-              <ExercisePickerDialog
-                catalog={catalog}
-                history={prev}
-                lockMuscle={we.muscle}
-                title="Swap exercise"
-                allowOfflineCreate
-                onPick={onAssign}
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled}
-                    aria-label="Swap exercise"
-                  >
-                    <Repeat2 className="size-3.5" /> Swap
-                  </Button>
-                }
-              />
-            )}
+              {(we.muscle || we.role) && (
+                <ExercisePickerDialog
+                  catalog={catalog}
+                  history={prev}
+                  lockMuscle={we.muscle}
+                  title="Swap exercise"
+                  allowOfflineCreate
+                  onPick={onAssign}
+                  trigger={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled}
+                      aria-label="Swap exercise"
+                    >
+                      <Repeat2 className="size-3.5" /> Swap
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           </div>
         )}
       </CardHeader>
 
       {!unfilled && (
         <CardContent className="flex flex-col gap-1.5">
-          <div className="text-muted-foreground grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2 px-1 text-xs font-medium">
-            <span>Set</span>
-            <span className="ps-8">Weight ({unit.toLowerCase()})</span>
-            <span className="ps-8">{timed ? "Seconds" : "Reps"}</span>
-            <span />
-          </div>
+          {we.sets.length > 0 && (
+            <div className="text-muted-foreground grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2 px-1 text-xs font-medium">
+              <span>Set</span>
+              <span className="ps-8">Weight ({unit.toLowerCase()})</span>
+              <span className="ps-8">{timed ? "Seconds" : "Reps"}</span>
+              <span />
+            </div>
+          )}
           {(() => {
             let n = 0;
             return we.sets.map((s) => {

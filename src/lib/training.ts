@@ -290,11 +290,18 @@ export const LINK_LABELS: Record<ExerciseLink, string> = {
 
 export const LINK_VALUES = ["SUPERSET", "DROP_SET"] as const;
 
-/** Labels for the "what happens after this exercise" picker. */
+/** Labels for the "what happens after this exercise" picker (dropdown items). */
 export const LINK_OPTION_LABELS = {
   NONE: "Rest after this exercise",
   SUPERSET: "Superset with the next exercise",
   DROP_SET: "Drop set into the next exercise",
+} as const;
+
+/** Short form for the collapsed picker trigger, so it never clips on a phone. */
+export const LINK_TRIGGER_LABELS = {
+  NONE: "Then: rest",
+  SUPERSET: "Then: superset",
+  DROP_SET: "Then: drop set",
 } as const;
 
 /** One sentence a beginner can act on, per link type. */

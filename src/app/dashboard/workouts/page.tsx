@@ -5,7 +5,6 @@ import { ChevronRight, Plus } from "lucide-react";
 import { getCurrentUserId } from "@/lib/dal";
 import { formatDate, formatWeight } from "@/lib/training";
 import { getWorkoutHistory } from "@/lib/queries/workouts";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,28 +61,22 @@ export default async function WorkoutsPage() {
                     <span className="truncate">{w.name ?? "Workout"}</span>
                     <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="line-clamp-1">
                     {formatDate(w.date, {
                       weekday: "short",
-                      year: "numeric",
                       month: "short",
                       day: "numeric",
                     })}
                     {" · "}
-                    {w.exerciseCount} exercises · {w.setCount} sets ·{" "}
-                    {formatWeight(w.volume, w.unit)} lifted
+                    {w.exerciseCount} ex · {w.setCount} sets ·{" "}
+                    {formatWeight(w.volume, w.unit)}
                   </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-1.5">
-                  {w.exerciseNames.slice(0, 4).map((name) => (
-                    <Badge key={name} variant="secondary">
-                      {name}
-                    </Badge>
-                  ))}
-                  {w.exerciseNames.length > 4 ? (
-                    <Badge variant="ghost">+{w.exerciseNames.length - 4}</Badge>
+                  {w.exerciseNames.length > 0 ? (
+                    <p className="text-muted-foreground/80 mt-0.5 line-clamp-1 text-xs">
+                      {w.exerciseNames.join(" · ")}
+                    </p>
                   ) : null}
-                </CardContent>
+                </CardHeader>
               </Card>
             </Link>
           ))}
