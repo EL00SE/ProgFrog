@@ -26,7 +26,7 @@ with offline logging so a dead signal in the weights room never costs you a set.
 | Framework   | [Next.js 16](https://nextjs.org) (App Router, Turbopack)                                  |
 | Language    | TypeScript (strict)                                                                       |
 | Styling     | Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)                                      |
-| Auth        | [Auth.js v5](https://authjs.dev) — GitHub + Google, JWT                                   |
+| Auth        | [Auth.js v5](https://authjs.dev) — email + password, Google / Facebook / X, JWT           |
 | Database    | PostgreSQL ([Neon](https://neon.tech)) + [Prisma 7](https://www.prisma.io) (pg adapter)   |
 | Charts      | [Recharts](https://recharts.org)                                                          |
 | PWA         | Web manifest + hand-rolled service worker (`public/sw.js`)                                |
@@ -60,27 +60,30 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 Paste it into `.env` as `AUTH_SECRET`.
 
-### OAuth credentials
+### Sign-in
 
-Sign-in is GitHub + Google only (no email/password). The app boots without keys
-— provider sign-in just won't work until a pair is set. `pnpm db:seed` creates a
-`demo@example.com` user with a sample training history.
+**Email + password** works out of the box. Verification and reset links are sent
+via [Resend](https://resend.com) — set `RESEND_API_KEY` + an `EMAIL_FROM` on a
+domain you've verified there. Without a key, links are printed to the server
+console (fine for local dev). `pnpm db:seed` creates a `demo@example.com` user.
 
-Create an OAuth app with each provider and put the ID/secret pairs in `.env`
-(`AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`, `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`
-— Auth.js picks them up by name). Callback URLs, for the `:3001` dev port:
+**OAuth providers** are all optional and only appear once their `_ID` / `_SECRET`
+pair is set (`AUTH_GOOGLE_*`, `AUTH_FACEBOOK_*`, `AUTH_TWITTER_*` — Auth.js reads
+them by name). Callback URLs for the `:3001` dev port:
 
-- GitHub — <https://github.com/settings/developers> → `http://localhost:3001/api/auth/callback/github`
-- Google — <https://console.cloud.google.com/apis/credentials> → `http://localhost:3001/api/auth/callback/google`
-  (add your own email as a test user while the consent screen is in Testing mode)
+- Google — <https://console.cloud.google.com/apis/credentials> → `…/api/auth/callback/google`
+- Facebook — <https://developers.facebook.com/apps> → `…/api/auth/callback/facebook`
+  (the `email` permission needs Meta App Review before non-testers can use it)
+- X / Twitter — <https://developer.x.com> → `…/api/auth/callback/twitter`
+  (OAuth 2.0; X returns **no** email, so those accounts have no address on file —
+  `User.email` is nullable for this reason)
 
-Same email across both providers resolves to one account
-(`allowDangerousEmailAccountLinking` in `src/auth.config.ts` — safe here only
-because both providers verify email ownership). A `JWTSessionError: no matching
-decryption secret` means a stale cookie from another app on the same port or a
-changed `AUTH_SECRET` — clear site data or use a private window. For production,
-add the deployed-domain callback URLs and set every `AUTH_*` var in the host's
-environment.
+Same email across Google/Facebook resolves to one account
+(`allowDangerousEmailAccountLinking`, safe because both verify email ownership).
+A `JWTSessionError: no matching decryption secret` means a stale cookie from
+another app on the same port or a changed `AUTH_SECRET` — clear site data. In
+production set `AUTH_URL` + `APP_URL` to the deployed origin and add the
+deployed-domain callback URLs.
 
 ## Scripts
 

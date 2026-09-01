@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LogOut } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/dal";
-import { signOutAction } from "@/lib/actions/auth";
+import { currentUserHasPassword, signOutAction } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { InstallButton } from "@/components/pwa/install-button";
+import { PasswordCard } from "@/components/settings/password-card";
 import { WeightUnitForm } from "@/components/settings/weight-unit-form";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -20,6 +21,7 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) return null;
+  const hasPassword = await currentUserHasPassword();
 
   return (
     <div className="flex max-w-lg flex-col gap-6">
@@ -51,10 +53,28 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
+      {user.email ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>
+              {hasPassword
+                ? "We'll email a link to set a new password."
+                : "You signed in with a provider. Add a password to sign in with email too."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PasswordCard email={user.email} hasPassword={hasPassword} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
-          <CardDescription>Signed in as {user.email}</CardDescription>
+          <CardDescription>
+            {user.email ? `Signed in as ${user.email}` : "Signed in with X"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={signOutAction}>

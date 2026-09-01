@@ -1,25 +1,31 @@
 import type { NextAuthConfig } from "next-auth";
-import GitHub from "next-auth/providers/github";
+import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
+import Twitter from "next-auth/providers/twitter";
 
 import { name as pkgName } from "../package.json";
 
 /**
  * Edge-safe Auth.js config: no database adapter, no Node-only imports.
  * Shared by the full server instance (`auth.ts`) and the proxy (`proxy.ts`).
+ * The Credentials (email + password) provider is added in `auth.ts` only —
+ * bcrypt can't run on the edge.
  */
 
 // The session cookie name is namespaced per project: localhost apps share one
 // cookie jar across ports, so a shared name makes a sibling project's stale
 // token fail to decrypt ("no matching decryption secret" JWTSessionError).
-// Defaults to the package.json name (which you rename per project anyway);
-// AUTH_COOKIE_PREFIX overrides it if you need an explicit value.
 const cookiePrefix =
   process.env.AUTH_COOKIE_PREFIX?.trim() ||
   pkgName.replace(/[^a-z0-9_-]/gi, "") ||
   "authjs";
 const useSecureCookies =
   process.env.AUTH_URL?.startsWith("https://") ?? process.env.NODE_ENV === "production";
+
+// Signed-in users get bounced to the dashboard from these. `/reset-password`
+// and `/verify-email` stay reachable — someone may follow an email link while
+// already signed in on another account.
+const PUBLIC_ONLY = new Set(["/sign-in", "/sign-up", "/forgot-password"]);
 
 export default {
   cookies: {
@@ -33,12 +39,14 @@ export default {
       },
     },
   },
-  // `allowDangerousEmailAccountLinking` lets one person use GitHub *or* Google
-  // for the same email and land on a single account. It's safe here because both
-  // providers verify email ownership; only enable it for providers you trust.
+  // `allowDangerousEmailAccountLinking` lets one person use any of these
+  // providers for the same email and land on a single account. Safe here
+  // because Google and Facebook both verify email ownership. Twitter/X never
+  // returns an email, so there's nothing to link on.
   providers: [
-    GitHub({ allowDangerousEmailAccountLinking: true }),
     Google({ allowDangerousEmailAccountLinking: true }),
+    Facebook({ allowDangerousEmailAccountLinking: true }),
+    Twitter,
   ],
   pages: {
     signIn: "/sign-in",
@@ -51,8 +59,8 @@ export default {
 
       if (isOnDashboard) return isLoggedIn;
 
-      // Bounce signed-in users away from the sign-in page.
-      if (isLoggedIn && nextUrl.pathname === "/sign-in") {
+      // Bounce signed-in users away from the auth pages.
+      if (isLoggedIn && PUBLIC_ONLY.has(nextUrl.pathname)) {
         return Response.redirect(new URL("/dashboard", nextUrl));
       }
 

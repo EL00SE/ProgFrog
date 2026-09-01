@@ -18,8 +18,11 @@ datasource db {
 model User {
   id            String     @id @default(cuid())
   name          String?
-  email         String     @unique
+  /// Nullable: X / Twitter sign-in never returns an email address.
+  email         String?    @unique
   emailVerified DateTime?
+  /// bcrypt hash — only set for accounts that signed up with email + password.
+  passwordHash  String?
   image         String?
   weightUnit    WeightUnit @default(KG)
   heightCm      Float?
@@ -31,10 +34,31 @@ model User {
 
   accounts    Account[]
   sessions    Session[]
+  authTokens  AuthToken[]
   exercises   Exercise[]
   workouts    Workout[]
   templates   Template[]
   bodyEntries BodyEntry[]
+}
+
+/// Short-lived single-use token for the email-verification and password-reset
+/// flows. Only the SHA-256 hash of the token is stored; the raw value goes out
+/// in the email link and is never persisted.
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expires   DateTime
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 /// A dated body-weight measurement, so the user can track body progress
