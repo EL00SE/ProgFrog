@@ -62,10 +62,17 @@ Paste it into `.env` as `AUTH_SECRET`.
 
 ### Sign-in
 
-**Email + password** works out of the box. Verification and reset links are sent
-via [Resend](https://resend.com) — set `RESEND_API_KEY` + an `EMAIL_FROM` on a
-domain you've verified there. Without a key, links are printed to the server
-console (fine for local dev). `pnpm db:seed` creates a `demo@example.com` user.
+**Email + password** works out of the box. Verification and reset links go out
+via [Resend](https://resend.com); set `RESEND_API_KEY`. If the key is unset — or
+Resend rejects the send — the link is written to the server log (`[email:link]`)
+so it's still recoverable.
+
+`EMAIL_FROM` defaults to `ProgFrog <onboarding@resend.dev>`, Resend's shared
+sender, which **only delivers to your own Resend-account address**. To email
+other people you must verify a domain you own in Resend and point `EMAIL_FROM`
+at an address on it (`noreply@yourdomain.com`) — you can't verify `*.vercel.app`.
+
+`pnpm db:seed` creates a `demo@example.com` user.
 
 **OAuth providers** are all optional and only appear once their `_ID` / `_SECRET`
 pair is set (`AUTH_GOOGLE_*`, `AUTH_FACEBOOK_*`, `AUTH_TWITTER_*` — Auth.js reads

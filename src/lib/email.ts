@@ -7,26 +7,30 @@ import { env } from "@/env";
 type Mail = { to: string; subject: string; html: string; text: string };
 
 /**
- * Send one transactional email. When `RESEND_API_KEY` is unset the link is
- * logged to the server console instead — enough to develop the flows locally
- * without an email provider.
+ * Send one transactional email. Never throws — if there's no `RESEND_API_KEY`,
+ * or Resend rejects the send (e.g. the shared `onboarding@resend.dev` sender
+ * only delivers to your own Resend-account address), the link is written to the
+ * server log so it's still recoverable.
  */
 async function send({ to, subject, html, text }: Mail) {
-  if (!env.RESEND_API_KEY) {
-    console.info(
-      `\n[email:dev] To: ${to}\n[email:dev] ${subject}\n[email:dev] ${text}\n`,
-    );
-    return;
+  if (env.RESEND_API_KEY) {
+    try {
+      const { error } = await new Resend(env.RESEND_API_KEY).emails.send({
+        from: env.EMAIL_FROM,
+        to,
+        subject,
+        html,
+        text,
+      });
+      if (!error) return;
+      console.warn(`[email] Resend rejected send to ${to}: ${error.message}`);
+    } catch (err) {
+      console.warn(`[email] send to ${to} failed:`, err);
+    }
   }
-  const resend = new Resend(env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
-    from: env.EMAIL_FROM,
-    to,
-    subject,
-    html,
-    text,
-  });
-  if (error) throw new Error(`Email send failed: ${error.message}`);
+  console.info(
+    `\n[email:link] To: ${to}\n[email:link] ${subject}\n[email:link] ${text}\n`,
+  );
 }
 
 function layout(heading: string, body: string, cta: { label: string; url: string }) {
