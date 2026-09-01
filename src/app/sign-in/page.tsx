@@ -9,17 +9,24 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { FrogMark } from "@/components/logo";
+import { AuthError } from "@/components/auth/auth-error";
+import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { ClearPageCache } from "@/components/pwa/clear-page-cache";
 import { CredentialsForm } from "./credentials-form";
-import { SignInButtons } from "./sign-in-buttons";
 
 export const metadata: Metadata = { title: "Sign in" };
 
 export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
-  const { reset } = await searchParams;
+  const params = await searchParams;
+  const error = typeof params.error === "string" ? params.error : undefined;
+  const notice = params.verified
+    ? "Email verified — sign in to get started."
+    : params.reset
+      ? "Password updated — sign in with your new one."
+      : null;
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <main className="flex flex-1 items-start justify-center px-4 pt-[8vh] pb-16 sm:items-center sm:pt-16">
       <ClearPageCache />
       <Card className="w-full max-w-sm">
         <CardHeader className="justify-items-center text-center">
@@ -28,12 +35,13 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
           <CardDescription>Log your workouts and track your progress.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {reset ? (
+          <AuthError code={error} />
+          {notice ? (
             <p
               className="border-primary/30 bg-primary/5 text-primary rounded-lg border p-2.5 text-center text-sm"
               role="status"
             >
-              Password updated — sign in with your new one.
+              {notice}
             </p>
           ) : null}
 
@@ -45,7 +53,7 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
             <span className="bg-border h-px flex-1" />
           </div>
 
-          <SignInButtons />
+          <OAuthButtons />
 
           <p className="text-muted-foreground text-center text-sm">
             New here?{" "}

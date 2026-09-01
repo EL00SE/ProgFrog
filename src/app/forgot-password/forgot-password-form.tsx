@@ -16,7 +16,18 @@ export function ForgotPasswordForm() {
     <form action={action} className="grid gap-3 text-left">
       <div className="grid gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-10"
+          required
+        />
       </div>
       <FormMessage state={state} />
       <SubmitButton className="w-full">Send reset link</SubmitButton>

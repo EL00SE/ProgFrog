@@ -211,17 +211,27 @@ export async function resendVerification(
   return { message: "If that account needs verifying, a fresh link is on its way." };
 }
 
-/** Consume a verification token (called from the /verify-email page). */
-export async function verifyEmailToken(
-  token: string,
-): Promise<{ ok: true } | { ok: false }> {
-  const userId = await consumeAuthToken(token, "EMAIL_VERIFICATION");
-  if (!userId) return { ok: false };
+/**
+ * Consume a verification token. Runs from a button press on /verify-email, not
+ * on page load — so an email client / security scanner that pre-fetches the link
+ * (Apple Mail, Outlook SafeLinks, …) doesn't silently burn the token.
+ */
+export async function verifyEmail(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const userId = await consumeAuthToken(
+    String(formData.get("token") ?? ""),
+    "EMAIL_VERIFICATION",
+  );
+  if (!userId) {
+    return { error: "This link is invalid or has already been used." };
+  }
   await prisma.user.update({
     where: { id: userId },
     data: { emailVerified: new Date() },
   });
-  return { ok: true };
+  redirect("/sign-in?verified=1");
 }
 
 /** Whether the current session belongs to a password account (for Settings UI). */

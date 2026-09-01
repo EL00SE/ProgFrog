@@ -15,7 +15,18 @@ export function CredentialsForm() {
     <form action={action} className="grid gap-3 text-left">
       <div className="grid gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-10"
+          required
+        />
       </div>
       <div className="grid gap-1.5">
         <div className="flex items-center justify-between">
@@ -32,6 +43,7 @@ export function CredentialsForm() {
           name="password"
           type="password"
           autoComplete="current-password"
+          className="h-10"
           required
         />
       </div>

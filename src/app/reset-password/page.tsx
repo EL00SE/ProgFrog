@@ -19,7 +19,7 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <main className="flex flex-1 items-start justify-center px-4 pt-[8vh] pb-16 sm:items-center sm:pt-16">
       <Card className="w-full max-w-sm">
         <CardHeader className="justify-items-center text-center">
           <FrogMark className="mb-1 size-10" />

@@ -19,11 +19,28 @@ export function SignUpForm() {
     <form action={action} className="grid gap-3 text-left">
       <div className="grid gap-1.5">
         <Label htmlFor="name">Name (optional)</Label>
-        <Input id="name" name="name" autoComplete="name" maxLength={80} />
+        <Input
+          id="name"
+          name="name"
+          autoComplete="name"
+          maxLength={80}
+          className="h-10"
+        />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" autoComplete="email" required />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-10"
+          required
+        />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="password">Password</Label>
@@ -33,6 +50,7 @@ export function SignUpForm() {
           type="password"
           autoComplete="new-password"
           minLength={8}
+          className="h-10"
           required
         />
         <p className="text-muted-foreground text-xs">

@@ -21,6 +21,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           type="password"
           autoComplete="new-password"
           minLength={8}
+          className="h-10"
           required
         />
         <p className="text-muted-foreground text-xs">At least 8 characters.</p>
