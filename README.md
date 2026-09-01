@@ -4,9 +4,6 @@ A personal gym-progress tracker — log workouts set by set, follow your splits,
 and watch strength trend over time. Built mobile-first and installable as a PWA,
 with offline logging so a dead signal in the weights room never costs you a set.
 
-> Working on the app? **[GETTING-STARTED.md](GETTING-STARTED.md)** is a React /
-> App Router refresher. OAuth keys: **[AUTH-SETUP.md](AUTH-SETUP.md)**.
-
 ## What it does
 
 - **Workout logger** — start freestyle or from a template day; log weight × reps
@@ -65,10 +62,25 @@ Paste it into `.env` as `AUTH_SECRET`.
 
 ### OAuth credentials
 
-Sign-in is GitHub + Google only (no email/password). Full walkthrough:
-**[AUTH-SETUP.md](AUTH-SETUP.md)**. The app boots without keys — provider
-sign-in just won't work until a pair is set. `pnpm db:seed` creates a
+Sign-in is GitHub + Google only (no email/password). The app boots without keys
+— provider sign-in just won't work until a pair is set. `pnpm db:seed` creates a
 `demo@example.com` user with a sample training history.
+
+Create an OAuth app with each provider and put the ID/secret pairs in `.env`
+(`AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`, `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`
+— Auth.js picks them up by name). Callback URLs, for the `:3001` dev port:
+
+- GitHub — <https://github.com/settings/developers> → `http://localhost:3001/api/auth/callback/github`
+- Google — <https://console.cloud.google.com/apis/credentials> → `http://localhost:3001/api/auth/callback/google`
+  (add your own email as a test user while the consent screen is in Testing mode)
+
+Same email across both providers resolves to one account
+(`allowDangerousEmailAccountLinking` in `src/auth.config.ts` — safe here only
+because both providers verify email ownership). A `JWTSessionError: no matching
+decryption secret` means a stale cookie from another app on the same port or a
+changed `AUTH_SECRET` — clear site data or use a private window. For production,
+add the deployed-domain callback URLs and set every `AUTH_*` var in the host's
+environment.
 
 ## Scripts
 
