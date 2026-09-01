@@ -9,6 +9,23 @@ import { getChatContext } from "@/lib/queries/chat-context";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * Best-effort per-user rate limit. In-memory, so it resets on deploy and isn't
+ * shared across serverless instances — enough to stop one client hammering the
+ * Anthropic API and running up the bill, not a hard quota.
+ */
+const RATE_LIMIT = { windowMs: 5 * 60_000, max: 20 };
+const hits = new Map<string, number[]>();
+
+function rateLimited(userId: string): boolean {
+  const now = Date.now();
+  const recent = (hits.get(userId) ?? []).filter((t) => now - t < RATE_LIMIT.windowMs);
+  recent.push(now);
+  hits.set(userId, recent);
+  if (hits.size > 5000) hits.clear(); // crude cap so the map can't grow forever
+  return recent.length > RATE_LIMIT.max;
+}
+
 const bodySchema = z.object({
   messages: z
     .array(
@@ -49,6 +66,13 @@ export async function POST(req: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (!user.chatConsentAt) {
     return Response.json({ error: "consent_required" }, { status: 403 });
+  }
+
+  if (rateLimited(user.id)) {
+    return Response.json(
+      { error: "You're sending messages too fast — give it a minute." },
+      { status: 429 },
+    );
   }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));

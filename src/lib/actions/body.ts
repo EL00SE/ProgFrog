@@ -67,12 +67,8 @@ export async function logWeight(input: z.infer<typeof logSchema>) {
 
 export async function deleteBodyEntry(id: string) {
   const userId = await getCurrentUserId();
-  const entry = await prisma.bodyEntry.findFirst({
-    where: { id, userId },
-    select: { id: true },
-  });
-  if (!entry) throw new Error("Not found");
-  await prisma.bodyEntry.delete({ where: { id } });
+  const { count } = await prisma.bodyEntry.deleteMany({ where: { id, userId } });
+  if (count === 0) throw new Error("Not found");
 
   return { ok: true as const };
 }

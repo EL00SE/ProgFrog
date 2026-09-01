@@ -152,7 +152,9 @@ export function ExercisePickerDialog({
         return;
       }
       // Optimistic: hand the caller a temp exercise now, queue the real create.
-      const clientId = `local_x_${Date.now().toString(36)}`;
+      const clientId = `local_x_${Date.now().toString(36)}_${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
       const draft: PickerExercise = {
         id: clientId,
         name,

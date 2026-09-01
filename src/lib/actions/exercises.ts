@@ -68,8 +68,8 @@ export async function createCustomExercise(
 
   // Replayed from the offline outbox — hand back what was already created.
   if (clientId) {
-    const prior = await prisma.exercise.findUnique({
-      where: { clientId },
+    const prior = await prisma.exercise.findFirst({
+      where: { clientId, ownerId: userId },
       select: exerciseSelect,
     });
     if (prior) return { ok: true, exercise: prior };

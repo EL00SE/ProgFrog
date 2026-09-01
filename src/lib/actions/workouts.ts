@@ -300,8 +300,8 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
   await assertOwnWorkout(userId, data.workoutId);
 
   if (data.clientId) {
-    const existing = await prisma.workoutExercise.findUnique({
-      where: { clientId: data.clientId },
+    const existing = await prisma.workoutExercise.findFirst({
+      where: { clientId: data.clientId, workout: { userId } },
       include: workoutExerciseInclude,
     });
     if (existing) return existing; // replayed create — no-op
@@ -350,8 +350,8 @@ export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
   await assertOwnWorkout(userId, data.workoutId);
 
   if (data.clientId) {
-    const existing = await prisma.workoutExercise.findUnique({
-      where: { clientId: data.clientId },
+    const existing = await prisma.workoutExercise.findFirst({
+      where: { clientId: data.clientId, workout: { userId } },
       include: workoutExerciseInclude,
     });
     if (existing) return existing;
@@ -482,15 +482,26 @@ export async function updateWorkoutExercise(input: z.infer<typeof updateWeSchema
 
 // --- sets -----------------------------------------------------------------
 
+const addSetSchema = z.object({
+  workoutExerciseId: z.string().min(1),
+  type: setTypeEnum.optional(),
+  clientId: z.string().min(1).max(60).optional(),
+});
+
 export async function addSet(
-  workoutExerciseId: string,
+  workoutExerciseIdInput: string,
   opts?: { type?: SetType; clientId?: string },
 ) {
   const userId = await getCurrentUserId();
+  const {
+    workoutExerciseId,
+    type: parsedType,
+    clientId,
+  } = addSetSchema.parse({ workoutExerciseId: workoutExerciseIdInput, ...opts });
 
-  if (opts?.clientId) {
-    const existing = await prisma.setEntry.findUnique({
-      where: { clientId: opts.clientId },
+  if (clientId) {
+    const existing = await prisma.setEntry.findFirst({
+      where: { clientId, workoutExercise: { workout: { userId } } },
     });
     if (existing) return existing; // replayed create — no-op
   }
@@ -529,7 +540,7 @@ export async function addSet(
     }
   }
 
-  const type = (opts?.type ?? "NORMAL") as SetType;
+  const type = (parsedType ?? "NORMAL") as SetType;
   // A drop set is lighter by definition — start it ~20% down (nearest 0.5) so
   // the intent is obvious; the user still adjusts.
   const weight =
@@ -544,7 +555,7 @@ export async function addSet(
       type,
       reps: seedReps,
       weight,
-      clientId: opts?.clientId,
+      clientId,
     },
   });
   // No revalidate — the logger owns its state; see updateSet().

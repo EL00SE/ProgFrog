@@ -156,8 +156,9 @@ function clearSnapshot(workoutId: string) {
 }
 
 let tmpSeq = 0;
-const tmpSetId = () => `local_s_${Date.now().toString(36)}_${tmpSeq++}`;
-const tmpWeId = () => `local_e_${Date.now().toString(36)}_${tmpSeq++}`;
+const rand = () => Math.random().toString(36).slice(2, 8);
+const tmpSetId = () => `local_s_${Date.now().toString(36)}_${tmpSeq++}_${rand()}`;
+const tmpWeId = () => `local_e_${Date.now().toString(36)}_${tmpSeq++}_${rand()}`;
 
 /** Build an optimistic WorkoutExercise for the logger's local state. */
 function optimisticWE(

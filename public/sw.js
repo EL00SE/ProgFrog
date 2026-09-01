@@ -1,7 +1,7 @@
 /* ProgFrog service worker — minimal, hand-rolled.
  * Goals: make the app installable and degrade gracefully offline.
  * Bump CACHE_VERSION whenever this file's caching rules change. */
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `progfrog-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `progfrog-pages-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -35,6 +35,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   const data = event.data;
   if (data === "SKIP_WAITING") self.skipWaiting();
+
+  // Sign-out / landing on the sign-in page: drop every cached authenticated
+  // page so a later visitor on this device can't read them offline.
+  if (data === "clear-pages") {
+    event.waitUntil(caches.delete(PAGE_CACHE));
+  }
 
   // The app asks us to stash a page (the active workout) so "Resume" works
   // even if that URL was never opened online.
@@ -82,14 +88,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // App shell navigations: network-first, fall back to the last good copy of
-  // this page, then to the offline screen.
+  // App shell navigations: network-first. Only the active-workout pages are
+  // written to the page cache (so "Resume" works offline) — caching every
+  // authenticated page would leave a readable copy behind after sign-out.
   if (request.mode === "navigate") {
+    const cacheThisPage = /^\/dashboard\/workouts\/[^/]+$/.test(url.pathname);
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy));
+          if (cacheThisPage && response.ok) {
+            const copy = response.clone();
+            caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(async () => {
