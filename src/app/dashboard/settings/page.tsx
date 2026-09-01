@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { LogOut } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/dal";
+import { signOutAction } from "@/lib/actions/auth";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -51,9 +54,14 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Account</CardTitle>
+          <CardDescription>Signed in as {user.email}</CardDescription>
         </CardHeader>
-        <CardContent className="text-muted-foreground text-sm">
-          Signed in as {user.email}
+        <CardContent>
+          <form action={signOutAction}>
+            <Button type="submit" variant="outline" size="sm">
+              <LogOut className="size-4" /> Sign out
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

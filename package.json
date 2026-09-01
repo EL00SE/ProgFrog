@@ -2,6 +2,7 @@
   "name": "progfrog",
   "version": "0.1.0",
   "private": true,
+  "description": "Personal gym-progress tracker — log workouts set by set, follow your splits, and watch strength trend over time.",
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3001",

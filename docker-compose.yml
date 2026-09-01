@@ -5,15 +5,15 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: app
+      POSTGRES_USER: progfrog
+      POSTGRES_PASSWORD: progfrog
+      POSTGRES_DB: progfrog
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      test: ["CMD-SHELL", "pg_isready -U progfrog -d progfrog"]
       interval: 5s
       timeout: 5s
       retries: 5
