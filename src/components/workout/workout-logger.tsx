@@ -429,6 +429,7 @@ export function WorkoutLogger({
     <div className="flex flex-col gap-3 pb-14 sm:pb-0">
       {(!online || syncPending > 0) && (
         <div
+          role="status"
           className={cn(
             "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
             online
@@ -769,12 +770,12 @@ function ExerciseCard({
                 <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
               ) : null}
               {target ? <span className="text-muted-foreground">{target}</span> : null}
-              <span className="text-muted-foreground/70 tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {index + 1}/{total}
               </span>
             </div>
             {prevForExercise ? (
-              <p className="text-muted-foreground/80 mt-1 truncate text-xs">
+              <p className="text-muted-foreground mt-1 truncate text-xs">
                 Last time: {formatPrev(prevForExercise, unit, timed)}
               </p>
             ) : null}
@@ -785,7 +786,6 @@ function ExerciseCard({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  className="h-4"
                   onClick={onMoveUp}
                   disabled={disabled || !canMoveUp}
                   aria-label="Move exercise up"
@@ -795,7 +795,6 @@ function ExerciseCard({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  className="h-4"
                   onClick={onMoveDown}
                   disabled={disabled || !canMoveDown}
                   aria-label="Move exercise down"
@@ -1155,7 +1154,7 @@ function SetRowImpl({
       <Button
         variant="ghost"
         size="icon-xs"
-        className="text-muted-foreground/70 justify-self-center"
+        className="text-muted-foreground/85 justify-self-center"
         onClick={onDelete}
         disabled={disabled}
         aria-label="Delete set"

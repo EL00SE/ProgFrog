@@ -33,7 +33,12 @@ export function UserMenu({ name, email, image }: UserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full"
+          aria-label="Account menu"
+        >
           <Avatar className="h-8 w-8">
             {image ? <AvatarImage src={image} alt={name ?? "User"} /> : null}
             <AvatarFallback>{initials}</AvatarFallback>

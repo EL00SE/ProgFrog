@@ -33,7 +33,10 @@ export function DashboardNav() {
   const isActive = useActive();
 
   return (
-    <nav className="bg-background/80 sticky top-14 z-30 hidden border-b backdrop-blur md:block">
+    <nav
+      aria-label="Sections"
+      className="bg-background/80 sticky top-14 z-30 hidden border-b backdrop-blur md:block"
+    >
       <div className="mx-auto flex max-w-5xl gap-1 px-4 py-2">
         {links.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact);
@@ -65,7 +68,10 @@ export function DashboardTabBar() {
   const tabs = links.slice(0, 5);
 
   return (
-    <nav className="bg-background/95 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur md:hidden">
+    <nav
+      aria-label="Primary"
+      className="bg-background/95 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur md:hidden"
+    >
       <div className="flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">
         {tabs.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact);

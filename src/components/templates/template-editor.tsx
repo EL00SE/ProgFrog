@@ -858,7 +858,6 @@ function MoveButtons({
       <Button
         variant="ghost"
         size="icon-xs"
-        className="h-4"
         disabled={disabled || !canUp}
         aria-label={`Move ${label} up`}
         onClick={onUp}
@@ -868,7 +867,6 @@ function MoveButtons({
       <Button
         variant="ghost"
         size="icon-xs"
-        className="h-4"
         disabled={disabled || !canDown}
         aria-label={`Move ${label} down`}
         onClick={onDown}

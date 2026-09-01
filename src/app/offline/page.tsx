@@ -19,7 +19,7 @@ export default function OfflinePage() {
         ProgFrog needs a connection for this page. Pages you&rsquo;ve already opened still
         work — reconnect to load anything new or to save a workout.
       </p>
-      <p className="text-muted-foreground/70 flex items-center gap-1.5 text-xs">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
         <FrogMark className="size-3.5" />
         Back online? Refresh to pick up where you left off.
       </p>

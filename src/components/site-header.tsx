@@ -15,7 +15,7 @@ export async function SiteHeader() {
         <Link href="/" className="transition-opacity hover:opacity-80">
           <Logo markClassName="size-7" />
         </Link>
-        <nav className="flex items-center gap-2">
+        <nav aria-label="Account" className="flex items-center gap-2">
           <ThemeToggle />
           {session?.user ? (
             <UserMenu

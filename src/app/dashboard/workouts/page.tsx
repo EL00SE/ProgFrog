@@ -72,7 +72,7 @@ export default async function WorkoutsPage() {
                     {formatWeight(w.volume, w.unit)}
                   </CardDescription>
                   {w.exerciseNames.length > 0 ? (
-                    <p className="text-muted-foreground/80 mt-0.5 line-clamp-1 text-xs">
+                    <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
                       {w.exerciseNames.join(" · ")}
                     </p>
                   ) : null}

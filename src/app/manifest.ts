@@ -9,7 +9,10 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
-    orientation: "portrait",
+    // No orientation lock — the layout is responsive, and locking it on an
+    // installed PWA (Android honors this) fails WCAG 1.3.4 for anyone who
+    // mounts their phone in landscape or reads in landscape by preference.
+    orientation: "any",
     background_color: "#0b3b2e",
     theme_color: "#0b3b2e",
     categories: ["health", "fitness", "lifestyle"],

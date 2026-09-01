@@ -134,3 +134,29 @@
     @apply font-sans;
   }
 }
+
+/* A blanket safety net: individual components (page-transition, the carousel
+ * swipe) already check prefers-reduced-motion themselves for JS-driven
+ * animation, but the shadcn/radix animate-in/out utilities (dialogs, sheets,
+ * selects, accordions, …) don't. This catches those without touching every
+ * component. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A modest contrast bump for anyone with prefers-contrast set — strengthens
+ * borders and muted text rather than introducing a whole second palette. */
+@media (prefers-contrast: more) {
+  :root,
+  .dark {
+    --border: var(--foreground);
+    --muted-foreground: var(--foreground);
+  }
+}
