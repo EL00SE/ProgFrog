@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "ProgFrog welcomes you back to your journey",
+    default: "ProgFrog",
     template: "%s · ProgFrog",
   },
   description: "Track your workouts, sets, and progress.",
