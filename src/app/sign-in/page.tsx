@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { enabledOAuthProviders } from "@/lib/oauth";
 import { FrogMark } from "@/components/logo";
 import { AuthError } from "@/components/auth/auth-error";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
@@ -18,6 +19,7 @@ export const metadata: Metadata = { title: "Sign in" };
 
 export default async function SignInPage({ searchParams }: PageProps<"/sign-in">) {
   const params = await searchParams;
+  const providers = enabledOAuthProviders();
   const error = typeof params.error === "string" ? params.error : undefined;
   const notice = params.verified
     ? "Email verified — sign in to get started."
@@ -47,13 +49,16 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
 
           <CredentialsForm />
 
-          <div className="flex items-center gap-3">
-            <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-xs">or</span>
-            <span className="bg-border h-px flex-1" />
-          </div>
-
-          <OAuthButtons />
+          {providers.length > 0 ? (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="bg-border h-px flex-1" />
+                <span className="text-muted-foreground text-xs">or</span>
+                <span className="bg-border h-px flex-1" />
+              </div>
+              <OAuthButtons providers={providers} />
+            </>
+          ) : null}
 
           <p className="text-muted-foreground text-center text-sm">
             New here?{" "}

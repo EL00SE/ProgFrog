@@ -27,6 +27,19 @@ const useSecureCookies =
 // already signed in on another account.
 const PUBLIC_ONLY = new Set(["/sign-in", "/sign-up", "/forgot-password"]);
 
+// Only wire up a provider when both halves of its key pair are present, so an
+// unconfigured provider never shows a button that leads to a broken page.
+const oauthProviders: NonNullable<NextAuthConfig["providers"]> = [];
+if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
+  oauthProviders.push(Google({ allowDangerousEmailAccountLinking: true }));
+}
+if (process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET) {
+  oauthProviders.push(Facebook({ allowDangerousEmailAccountLinking: true }));
+}
+if (process.env.AUTH_TWITTER_ID && process.env.AUTH_TWITTER_SECRET) {
+  oauthProviders.push(Twitter);
+}
+
 export default {
   cookies: {
     sessionToken: {
@@ -39,15 +52,11 @@ export default {
       },
     },
   },
-  // `allowDangerousEmailAccountLinking` lets one person use any of these
-  // providers for the same email and land on a single account. Safe here
-  // because Google and Facebook both verify email ownership. Twitter/X never
-  // returns an email, so there's nothing to link on.
-  providers: [
-    Google({ allowDangerousEmailAccountLinking: true }),
-    Facebook({ allowDangerousEmailAccountLinking: true }),
-    Twitter,
-  ],
+  // `allowDangerousEmailAccountLinking` (set on the configured providers above)
+  // lets one person use any of them for the same email and land on a single
+  // account. Safe here because Google and Facebook both verify email ownership.
+  // Twitter/X never returns an email, so there's nothing to link on.
+  providers: oauthProviders,
   pages: {
     signIn: "/sign-in",
   },
