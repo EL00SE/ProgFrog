@@ -21,13 +21,17 @@ const NO_SWIPE =
   "input,textarea,select,button,a,[role=slider],[data-slot=select-trigger]," +
   "[data-noswipe],.recharts-wrapper,.overflow-x-auto,[data-scroll-x]";
 
-const ENTER_MS = 220;
-const SETTLE = `transform ${ENTER_MS}ms ease-out, opacity ${ENTER_MS}ms ease-out`;
-const OFFSET = 24;
+// iOS-style deceleration — the page reads as having a bit of weight.
+const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const SETTLE_MS = 300;
+const PUSH_OFFSET = 20; // small nudge for taps / detail-page navigation
 
-// One wrapper instance lives in the dashboard layout, so a module-level "last
-// path" is enough to tell which way the next navigation is going.
+// One wrapper instance lives in the dashboard layout, so module-level state is
+// enough to carry a hint from one page render to the next.
 let lastPath = "";
+// Set by a swipe release: the incoming page then slides in a full screen width
+// (continuing the drag) instead of the small push nudge. 1 = forward, -1 = back.
+let swipeEnter = 0;
 
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
@@ -49,8 +53,8 @@ const prefersReducedMotion = () =>
 /**
  * The page content wrapper. Two jobs:
  *  - slides new content in from the direction you navigated,
- *  - on touch, drag the current page left/right and release to change tabs,
- *    carousel-style. Keyed on the pathname so filters don't re-trigger it.
+ *  - on touch, drag the page left/right 1:1 with the finger and release (past a
+ *    third of the width, or with a flick) to change tabs — carousel style.
  */
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -60,20 +64,33 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   const swipeIndex = SWIPE_TABS.indexOf(pathname);
   const canSwipe = swipeIndex !== -1;
 
-  // Enter animation — start offset in the travel direction, then ease home.
-  // Layout effect so the offset is set before the browser paints.
+  // Enter animation. Layout effect so the offset is set before the browser paints.
   useIsoLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const dir = lastPath ? direction(lastPath, pathname) : "none";
+    const fromSwipe = swipeEnter;
+    swipeEnter = 0;
     lastPath = pathname;
-    if (dir === "none" || prefersReducedMotion()) return;
+
+    if (dir === "none" || prefersReducedMotion()) {
+      el.style.transform = "";
+      el.style.opacity = "";
+      return;
+    }
+
+    const w = el.offsetWidth || window.innerWidth;
+    const startX = fromSwipe
+      ? fromSwipe * w
+      : dir === "forward"
+        ? PUSH_OFFSET
+        : -PUSH_OFFSET;
 
     el.style.transition = "none";
-    el.style.transform = `translate3d(${dir === "forward" ? OFFSET : -OFFSET}px,0,0)`;
-    el.style.opacity = "0";
+    el.style.transform = `translate3d(${startX}px,0,0)`;
+    el.style.opacity = fromSwipe ? "1" : "0"; // a swipe is a solid slide, no fade
     const raf = requestAnimationFrame(() => {
-      el.style.transition = SETTLE;
+      el.style.transition = `transform ${SETTLE_MS}ms ${EASE}, opacity ${SETTLE_MS}ms ${EASE}`;
       el.style.transform = "translate3d(0,0,0)";
       el.style.opacity = "1";
     });
@@ -97,26 +114,27 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     let active = false;
     let horizontal = false;
     let dx = 0;
+    let lastT = 0;
+    let lastMX = 0;
+    let vx = 0; // px per ms, smoothed
 
     const width = () => el.offsetWidth || window.innerWidth;
-
-    const settle = (transform: string, opacity: string) => {
-      el.style.transition = reduced ? "none" : SETTLE;
-      void el.offsetWidth; // commit the dragged transform as the animation start
-      el.style.transform = transform;
-      el.style.opacity = opacity;
-    };
+    const atStart = () => swipeIndex === 0;
+    const atEnd = () => swipeIndex === SWIPE_TABS.length - 1;
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
       if (t.clientX < 24) return; // leave the browser's edge back-swipe alone
       if ((t.target as HTMLElement)?.closest?.(NO_SWIPE)) return;
-      startX = t.clientX;
+      startX = lastMX = t.clientX;
       startY = t.clientY;
+      lastT = e.timeStamp;
       active = true;
       horizontal = false;
       dx = 0;
+      vx = 0;
+      el.style.transition = "none";
     };
 
     const onMove = (e: TouchEvent) => {
@@ -126,21 +144,25 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       const my = t.clientY - startY;
 
       if (!horizontal) {
-        if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
-        if (Math.abs(my) >= Math.abs(mx)) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        if (Math.abs(my) > Math.abs(mx)) {
           active = false; // vertical scroll — leave it alone
           return;
         }
         horizontal = true;
-        el.style.transition = "none";
       }
 
       e.preventDefault(); // we own the gesture now; stop the page scrolling
-      const nearStart = swipeIndex === 0 && mx > 0;
-      const nearEnd = swipeIndex === SWIPE_TABS.length - 1 && mx < 0;
-      dx = nearStart || nearEnd ? mx * 0.25 : mx; // rubber-band at the ends
+
+      const now = e.timeStamp;
+      const dt = now - lastT;
+      if (dt > 0) vx = 0.7 * vx + 0.3 * ((t.clientX - lastMX) / dt);
+      lastT = now;
+      lastMX = t.clientX;
+
+      const resist = (atStart() && mx > 0) || (atEnd() && mx < 0);
+      dx = resist ? mx * 0.28 : mx; // rubber-band at the ends
       el.style.transform = `translate3d(${dx}px,0,0)`;
-      el.style.opacity = String(1 - Math.min(Math.abs(dx) / width(), 1) * 0.3);
     };
 
     const onEnd = () => {
@@ -149,15 +171,20 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       if (!horizontal) return;
       horizontal = false;
 
-      const threshold = Math.min(width() * 0.28, 90);
-      const goNext = dx <= -threshold && swipeIndex < SWIPE_TABS.length - 1;
-      const goPrev = dx >= threshold && swipeIndex > 0;
+      const w = width();
+      const passed = Math.abs(dx) > w * 0.32;
+      const flicked = Math.abs(vx) > 0.35 && Math.sign(vx) === Math.sign(dx);
+      const goNext = (passed || flicked) && dx < 0 && !atEnd();
+      const goPrev = (passed || flicked) && dx > 0 && !atStart();
+      const anim = reduced ? "none" : `transform ${SETTLE_MS}ms ${EASE}`;
 
+      el.style.transition = anim;
       if (goNext || goPrev) {
-        settle(`translate3d(${goNext ? -width() : width()}px,0,0)`, "0");
+        swipeEnter = goNext ? 1 : -1;
+        el.style.transform = `translate3d(${goNext ? -w : w}px,0,0)`;
         router.push(SWIPE_TABS[swipeIndex + (goNext ? 1 : -1)]);
       } else {
-        settle("translate3d(0,0,0)", "1");
+        el.style.transform = "translate3d(0,0,0)";
       }
     };
 

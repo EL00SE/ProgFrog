@@ -36,6 +36,10 @@ export const viewport: Viewport = {
   themeColor: "#0b3b2e",
   // Let the app draw into the notch / home-indicator area once installed.
   viewportFit: "cover",
+  // Shrink the layout viewport when the on-screen keyboard opens, so
+  // bottom-anchored sheets (the exercise picker) stay above it. Chrome/Android
+  // honours this; iOS Safari ignores it and the picker handles it in JS.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

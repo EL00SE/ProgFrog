@@ -160,3 +160,24 @@
     --muted-foreground: var(--foreground);
   }
 }
+
+/* One-shot highlight on a just-added item (the logger scrolls to it). Uses
+ * outline so it doesn't shift layout; fades on its own. */
+@keyframes progfrog-flash {
+  from {
+    outline-color: var(--primary);
+  }
+  to {
+    outline-color: transparent;
+  }
+}
+.progfrog-flash {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  animation: progfrog-flash 1.3s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progfrog-flash {
+    animation: none;
+  }
+}

@@ -223,7 +223,17 @@ export function WorkoutLogger({
   );
   const [busy, startTransition] = React.useTransition();
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
+  // Id of the exercise just added — scroll it into view and flash it briefly.
+  const [newWeId, setNewWeId] = React.useState<string | null>(null);
   const unit = workout.unit;
+
+  React.useEffect(() => {
+    if (!newWeId) return;
+    const el = document.querySelector<HTMLElement>(`[data-we="${CSS.escape(newWeId)}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setNewWeId(null), 1400);
+    return () => clearTimeout(t);
+  }, [newWeId]);
 
   // Persist local state so a reload (from the cached page, offline) keeps edits.
   React.useEffect(() => {
@@ -269,6 +279,7 @@ export function WorkoutLogger({
   function handlePick(exerciseId: string, exercise?: PickerExercise) {
     const tempId = tmpWeId();
     setExercises((list) => [...list, optimisticWE(tempId, list.length, { exercise })]);
+    setNewWeId(tempId);
     outbox.addExercise(tempId, { workoutId: workout.id, exerciseId });
   }
 
@@ -278,6 +289,7 @@ export function WorkoutLogger({
       ...list,
       optimisticWE(tempId, list.length, { muscle: slot.muscle, role: slot.role }),
     ]);
+    setNewWeId(tempId);
     outbox.addSlot(tempId, { workoutId: workout.id, ...slot });
   }
 
@@ -495,6 +507,7 @@ export function WorkoutLogger({
           total: exercises.length,
           unit,
           disabled: pending,
+          flash: we.id === newWeId,
           catalog,
           prev,
           prevForExercise: we.exercise ? prev[we.exercise.id] : undefined,
@@ -650,6 +663,7 @@ function ExerciseCard({
   total,
   unit,
   disabled,
+  flash = false,
   catalog,
   prev,
   prevForExercise,
@@ -673,6 +687,7 @@ function ExerciseCard({
   total: number;
   unit: "KG" | "LB";
   disabled: boolean;
+  flash?: boolean;
   catalog: PickerExercise[];
   prev: PrevMap;
   prevForExercise?: ExercisePrev;
@@ -710,7 +725,11 @@ function ExerciseCard({
 
   if (collapsed && we.exercise) {
     return (
-      <Card size="sm" className={cn(inGroup && "shadow-none", "opacity-80")}>
+      <Card
+        size="sm"
+        data-we={we.id}
+        className={cn(inGroup && "shadow-none", "opacity-80")}
+      >
         <CardHeader>
           <button
             type="button"
@@ -735,7 +754,16 @@ function ExerciseCard({
   }
 
   return (
-    <Card size="sm" className={cn(inGroup && "shadow-none", done && "opacity-80")}>
+    <Card
+      size="sm"
+      data-we={we.id}
+      className={cn(
+        inGroup && "shadow-none",
+        done && "opacity-80",
+        flash &&
+          "progfrog-flash motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-300",
+      )}
+    >
       <CardHeader className="gap-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

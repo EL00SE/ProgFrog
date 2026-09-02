@@ -192,6 +192,25 @@ export function ExercisePickerDialog({
     if (!v) reset();
   };
 
+  // How far the on-screen keyboard overlaps the bottom of the viewport. iOS
+  // Safari doesn't shrink the layout viewport for the keyboard, so a
+  // bottom-anchored sheet ends up behind it — lift it by this much.
+  const [kbInset, setKbInset] = React.useState(0);
+  React.useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!isMobile || !open || !vv) return;
+    const update = () => {
+      setKbInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [isMobile, open]);
+
   const body = (
     <>
       <DialogHeader>
@@ -334,7 +353,13 @@ export function ExercisePickerDialog({
         {open ? (
           <SheetContent
             side="bottom"
-            className="flex max-h-[88dvh] flex-col gap-3 rounded-t-2xl p-4"
+            // Fixed tall height (not size-to-content) so the search field always
+            // sits near the top of the screen; lifted clear of the keyboard.
+            className="flex h-[80dvh] flex-col gap-3 rounded-t-2xl p-4"
+            style={{
+              bottom: kbInset,
+              maxHeight: `calc(100dvh - ${kbInset}px - 1.5rem)`,
+            }}
           >
             {body}
           </SheetContent>
