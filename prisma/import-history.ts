@@ -95,6 +95,20 @@ const CUSTOM: Record<string, { muscle: string; equipment: Equipment }> = {
 const norm = (s: string) =>
   s.toLowerCase().trim().replace(/\s+/g, " ").replace(/[.]/g, "");
 
+/**
+ * Which split a workout belongs to, for "assume like last similar workout" days.
+ * "Legs" and the older "Legs+Core" are the same session.
+ */
+function splitFamily(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("push")) return "push";
+  if (n.includes("pull")) return "pull";
+  if (n.includes("leg")) return "legs";
+  if (n.includes("hug")) return "hug";
+  if (n.includes("arm")) return "arms";
+  return n.trim();
+}
+
 function inferMuscle(category: string, exercise: string): string {
   const c = category.trim();
   if (c && c !== "Legs" && c !== "Cardio") return c;
@@ -211,7 +225,30 @@ async function main() {
   let workouts = 0;
   let entries = 0;
   let sets = 0;
+  let mirrored = 0;
   const customNames = new Set<string>();
+
+  // The last fully-recorded session of each split, for the days the sheet marks
+  // "Didnt Record Assume like last similar workout".
+  type ExPayload = {
+    exerciseId: string;
+    muscle: string | null;
+    equipment: Equipment;
+    order: number;
+    linkToNext: ExerciseLink | null;
+    notes: string | null;
+    setCreate: {
+      order: number;
+      type: SetType;
+      reps: number;
+      seconds: number | null;
+      weight: number;
+    }[];
+  };
+  const lastReal = new Map<
+    string,
+    { date: Date; label: string; exercises: ExPayload[] }
+  >();
 
   for (const dayRows of days.values()) {
     const first = dayRows[0];
@@ -302,6 +339,24 @@ async function main() {
 
     const withSets = exEntries.filter((e) => e.setCreate.length > 0);
 
+    // "Didnt Record Assume like last similar workout" → mirror the most recent
+    // fully-logged session of the same split so the day isn't a blank hole.
+    let dayExercises: ExPayload[] = withSets;
+    let note: string | null = null;
+    if (withSets.length === 0) {
+      const src = lastReal.get(splitFamily(name));
+      if (src) {
+        dayExercises = structuredClone(src.exercises);
+        mirrored += 1;
+        note = `Sets weren't recorded — mirrored from the ${src.label} session on ${src.date.toLocaleDateString(
+          "en-GB",
+          { day: "numeric", month: "short" },
+        )}.`;
+      } else {
+        note = "Trained — sets not recorded";
+      }
+    }
+
     await prisma.workout.create({
       data: {
         userId: user.id,
@@ -313,9 +368,9 @@ async function main() {
         startedAt: date,
         finishedAt: date,
         unit: "KG",
-        notes: withSets.length ? null : "Trained — sets not recorded",
+        notes: note,
         exercises: {
-          create: withSets.map(({ setCreate, ...e }) => ({
+          create: dayExercises.map(({ setCreate, ...e }) => ({
             ...e,
             sets: { create: setCreate },
           })),
@@ -323,14 +378,23 @@ async function main() {
       },
     });
 
+    if (withSets.length > 0) {
+      lastReal.set(splitFamily(name), { date, label: name, exercises: withSets });
+    }
+
     workouts += 1;
-    entries += withSets.length;
-    sets += withSets.reduce((n, e) => n + e.setCreate.length, 0);
+    entries += dayExercises.length;
+    sets += dayExercises.reduce((n, e) => n + e.setCreate.length, 0);
   }
 
   console.log(
     `Imported ${workouts} workouts, ${entries} exercise entries, ${sets} sets for ${user.email}.`,
   );
+  if (mirrored) {
+    console.log(
+      `  ${mirrored} un-recorded days mirrored from an earlier same-split session.`,
+    );
+  }
   if (customNames.size) {
     console.log(`Custom exercises: ${[...customNames].sort().join(", ")}`);
   }
