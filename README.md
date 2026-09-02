@@ -10,7 +10,8 @@ with offline logging so a dead signal in the weights room never costs you a set.
   (or timed holds) per set, mark warm-up / drop / failure sets, superset and
   drop-set links, a built-in rest timer.
 - **Templates** — define your split once (Push / Pull / Legs, etc.) and start a
-  session pre-filled from any day.
+  session pre-filled from any day, or build a template day straight from a
+  workout you already logged (as exact exercises or as open muscle/role slots).
 - **Progress** — estimated 1-rep max, heaviest set and total volume per exercise
   or muscle role, plus bodyweight tracking.
 - **Offline-first** — a service worker precaches the active workout; mutations

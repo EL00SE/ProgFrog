@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { BackLink } from "@/components/back-link";
+import { AddToTemplateDialog } from "@/components/workout/add-to-template-dialog";
 
 /** Minutes → "1h 24m" / "48m". */
 function formatDuration(minutes: number): string {
@@ -165,10 +166,12 @@ export function FinishedWorkoutView({
   workout,
   title,
   dateLabel,
+  templates,
 }: {
   workout: FullWorkout;
   title: string;
   dateLabel: string;
+  templates: { id: string; name: string; days: { id: string; name: string }[] }[];
 }) {
   const [pending, startTransition] = React.useTransition();
   const unit = workout.unit;
@@ -188,7 +191,8 @@ export function FinishedWorkoutView({
             {formatWeight(volume, unit)} lifted
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <AddToTemplateDialog workoutId={workout.id} templates={templates} />
           <Button
             variant="outline"
             size="sm"

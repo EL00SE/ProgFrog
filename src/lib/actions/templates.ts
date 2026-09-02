@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import {
   type ExerciseLink,
   type ExerciseRole,
+  isWorkingSet,
   LINK_VALUES,
   ROLE_VALUES,
   SET_TYPE_VALUES,
@@ -75,6 +76,93 @@ async function assertOwnTemplateSet(userId: string, id: string) {
     templateExerciseId: ts.templateExerciseId,
     templateId: ts.templateExercise.templateDay.templateId,
   };
+}
+
+// --- add a finished workout to a template -------------------------------
+
+const addWorkoutSchema = z.object({
+  workoutId: z.string().min(1),
+  templateId: z.string().min(1),
+  /** an existing day, or null to create a fresh day from the workout */
+  dayId: z.string().min(1).nullable(),
+  /** "exercise" keeps the specific movements; "slot" keeps only muscle + role */
+  mode: z.enum(["exercise", "slot"]),
+});
+
+/** "3 × 8" style rep target derived from a workout exercise's working sets. */
+function repTarget(reps: number[]): string | null {
+  const r = reps.filter((n) => n > 0);
+  if (!r.length) return null;
+  const lo = Math.min(...r);
+  const hi = Math.max(...r);
+  return lo === hi ? String(lo) : `${lo}-${hi}`;
+}
+
+export async function addWorkoutToTemplate(input: z.infer<typeof addWorkoutSchema>) {
+  const userId = await getCurrentUserId();
+  const data = addWorkoutSchema.parse(input);
+  await assertOwnTemplate(userId, data.templateId);
+
+  const workout = await prisma.workout.findFirst({
+    where: { id: data.workoutId, userId },
+    include: {
+      exercises: {
+        orderBy: { order: "asc" },
+        include: { exercise: { select: { muscle: true } }, sets: true },
+      },
+    },
+  });
+  if (!workout) throw new Error("Workout not found");
+
+  let dayId = data.dayId;
+  if (dayId) {
+    await assertOwnDay(userId, dayId);
+  } else {
+    const count = await prisma.templateDay.count({
+      where: { templateId: data.templateId },
+    });
+    const day = await prisma.templateDay.create({
+      data: {
+        templateId: data.templateId,
+        name: (workout.name?.split("·").pop() ?? "").trim() || `Day ${count + 1}`,
+        order: count,
+      },
+    });
+    dayId = day.id;
+  }
+
+  const start = await prisma.templateExercise.count({
+    where: { templateDayId: dayId },
+  });
+
+  await prisma.$transaction(
+    workout.exercises.map((we, i) => {
+      const working = we.sets.filter(
+        (s) => isWorkingSet(s) && (s.reps > 0 || (s.seconds ?? 0) > 0),
+      );
+      const keepExercise = data.mode === "exercise" && !!we.exerciseId;
+      return prisma.templateExercise.create({
+        data: {
+          templateDayId: dayId!,
+          exerciseId: keepExercise ? we.exerciseId : null,
+          muscle: we.muscle ?? we.exercise?.muscle ?? "Other",
+          role: keepExercise ? we.role : ((we.role ?? "ACCESSORY") as ExerciseRole),
+          order: start + i,
+          targetReps: repTarget(working.map((s) => s.reps)),
+          linkToNext: we.linkToNext,
+          sets: {
+            create: Array.from({ length: Math.max(working.length, 1) }, (_, s) => ({
+              order: s,
+              type: "NORMAL" as const,
+            })),
+          },
+        },
+      });
+    }),
+  );
+
+  revalidateTemplateViews(data.templateId);
+  return { ok: true as const, templateId: data.templateId, dayId };
 }
 
 // --- template -------------------------------------------------------------
