@@ -6,7 +6,7 @@ import { formatDate } from "@/lib/training";
 import { getExerciseCatalog } from "@/lib/queries/exercises";
 import { getExercisePrev } from "@/lib/queries/history";
 import { getTemplates } from "@/lib/queries/templates";
-import { getWorkout } from "@/lib/queries/workouts";
+import { getWorkout, getWorkoutNumber } from "@/lib/queries/workouts";
 import { BackLink } from "@/components/back-link";
 import { WorkoutLogger } from "@/components/workout/workout-logger";
 import { FinishedWorkoutView } from "@/components/workout/finished-workout-view";
@@ -31,11 +31,15 @@ export default async function WorkoutPage({
   });
 
   if (workout.finishedAt) {
-    const templates = await getTemplates(userId);
+    const [templates, number] = await Promise.all([
+      getTemplates(userId),
+      getWorkoutNumber(userId, workout.date),
+    ]);
     return (
       <FinishedWorkoutView
         workout={workout}
         title={title}
+        number={number}
         dateLabel={dateLabel}
         templates={templates.map((t) => ({
           id: t.id,

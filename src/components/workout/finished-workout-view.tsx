@@ -165,11 +165,13 @@ type WE = FullWorkout["exercises"][number];
 export function FinishedWorkoutView({
   workout,
   title,
+  number,
   dateLabel,
   templates,
 }: {
   workout: FullWorkout;
   title: string;
+  number: number | null;
   dateLabel: string;
   templates: { id: string; name: string; days: { id: string; name: string }[] }[];
 }) {
@@ -185,7 +187,14 @@ export function FinishedWorkoutView({
         <div className="space-y-1">
           <BackLink href="/dashboard/workouts">Workouts</BackLink>
           <p className="text-muted-foreground text-sm">{dateLabel}</p>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
+          <h1 className="flex items-baseline gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+            {title}
+            {number ? (
+              <span className="text-muted-foreground text-sm font-medium tabular-nums">
+                #{number}
+              </span>
+            ) : null}
+          </h1>
           <p className="text-muted-foreground text-sm">
             {workout.exercises.length} exercises · {working.length} sets ·{" "}
             {formatWeight(volume, unit)} lifted

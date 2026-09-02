@@ -57,9 +57,14 @@ export default async function WorkoutsPage() {
                 className="group-hover:ring-primary/30 h-full transition-shadow"
               >
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between gap-2">
+                  <CardTitle className="flex items-center gap-2">
                     <span className="truncate">{w.name ?? "Workout"}</span>
-                    <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium">
+                      {w.number ? (
+                        <span className="tabular-nums">#{w.number}</span>
+                      ) : null}
+                      <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
                   </CardTitle>
                   <CardDescription className="line-clamp-1">
                     {formatDate(w.date, {

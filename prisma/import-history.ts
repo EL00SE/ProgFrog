@@ -78,6 +78,14 @@ const ALIASES: Record<string, string> = {
   hyperextension: "Hyperextension",
 };
 
+// normalise the sheet's free-typed "Workout Type" into one consistent label
+const TYPE_LABELS: Record<string, string> = {
+  "leg+core": "Legs+Core",
+  "legs+core": "Legs+Core",
+  "leg + core": "Legs+Core",
+  "legs + core": "Legs+Core",
+};
+
 // unmatched name -> custom exercise definition
 const CUSTOM: Record<string, { muscle: string; equipment: Equipment }> = {
   "plate press out": { muscle: "Shoulders", equipment: "OTHER" },
@@ -208,7 +216,13 @@ async function main() {
   for (const dayRows of days.values()) {
     const first = dayRows[0];
     const date = parseDate(first.date);
-    const name = [first.dayLabel, first.type].filter(Boolean).join(" · ");
+    // Just the split type ("Push", "Pull", …). The session number is derived at
+    // read time (see `getWorkoutNumber`), so no "Day 40 ·" prefix is stored.
+    const rawType = first.type.trim();
+    const name =
+      (rawType && (TYPE_LABELS[rawType.toLowerCase()] ?? rawType)) ||
+      first.dayLabel.trim() ||
+      "Workout";
 
     const order: string[] = [];
     const merged = new Map<
@@ -291,7 +305,7 @@ async function main() {
     await prisma.workout.create({
       data: {
         userId: user.id,
-        name: name || first.dayLabel || "Workout",
+        name,
         date,
         // No real clock times from the sheet — anchor `startedAt` to the
         // workout date (not the import timestamp) and leave `endedAt` null so

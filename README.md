@@ -8,7 +8,8 @@ with offline logging so a dead signal in the weights room never costs you a set.
 
 - **Workout logger** — start freestyle or from a template day; log weight × reps
   (or timed holds) per set, mark warm-up / drop / failure sets, superset and
-  drop-set links, a built-in rest timer.
+  drop-set links, a built-in rest timer. Finished sessions are numbered in the
+  order you trained them (`#41` in the corner), not titled per day.
 - **Templates** — define your split once (Push / Pull / Legs, etc.) and start a
   session pre-filled from any day, or build a template day straight from a
   workout you already logged (as exact exercises or as open muscle/role slots).

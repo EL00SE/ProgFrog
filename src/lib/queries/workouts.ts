@@ -51,12 +51,20 @@ export async function getWorkoutHistory(userId: string) {
     orderBy: { date: "desc" },
     include: workoutInclude,
   });
-  return workouts.map(summarizeWorkout);
+  // Chronological session number — the oldest finished workout is #1.
+  return workouts.map((w, i) => summarizeWorkout(w, workouts.length - i));
+}
+
+/** 1-indexed position of a finished workout among all the user's finished ones. */
+export function getWorkoutNumber(userId: string, date: Date) {
+  return prisma.workout.count({
+    where: { userId, finishedAt: { not: null }, date: { lte: date } },
+  });
 }
 
 type WorkoutWithSets = Awaited<ReturnType<typeof getActiveWorkout>>;
 
-export function summarizeWorkout(w: NonNullable<WorkoutWithSets>) {
+export function summarizeWorkout(w: NonNullable<WorkoutWithSets>, number?: number) {
   const allSets: SetLike[] = w.exercises.flatMap((we) =>
     we.sets.map((s) => ({
       reps: s.reps,
@@ -67,6 +75,7 @@ export function summarizeWorkout(w: NonNullable<WorkoutWithSets>) {
   return {
     id: w.id,
     name: w.name,
+    number: number ?? null,
     date: w.date,
     unit: w.unit,
     finishedAt: w.finishedAt,
@@ -144,7 +153,9 @@ export async function getDashboardData(
       streakWeeks: weeklyStreak(workouts.map((w) => w.date)),
       lastWorkoutDate: workouts[0]?.date ?? null,
     },
-    recent: workouts.slice(0, recentCount).map(summarizeWorkout),
+    recent: workouts
+      .slice(0, recentCount)
+      .map((w, i) => summarizeWorkout(w, workouts.length - i)),
   };
 }
 
