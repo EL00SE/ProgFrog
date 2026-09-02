@@ -68,19 +68,19 @@ const ALIASES: Record<string, string> = {
   "leg raise": "Hanging Leg Raise",
   "skull crushers": "Skullcrusher",
   "leg press": "Leg Press",
+  situps: "Sit-up",
+  situp: "Sit-up",
+  "cable woodchoppers": "Cable Woodchopper",
+  "cable woodchopper": "Cable Woodchopper",
+  "incline bench y-raise": "Incline Y-Raise",
+  "back extentions": "Back Extension",
+  "back extension": "Back Extension",
+  hyperextension: "Hyperextension",
 };
 
 // unmatched name -> custom exercise definition
 const CUSTOM: Record<string, { muscle: string; equipment: Equipment }> = {
-  situps: { muscle: "Core", equipment: "BODYWEIGHT" },
-  "reverse crunch": { muscle: "Core", equipment: "BODYWEIGHT" },
-  "cable woodchoppers": { muscle: "Core", equipment: "CABLE" },
-  "upright row": { muscle: "Shoulders", equipment: "BARBELL" },
   "plate press out": { muscle: "Shoulders", equipment: "OTHER" },
-  "incline bench y-raise": {
-    muscle: "Traps",
-    equipment: "DUMBBELL",
-  },
   "777 bicep curls": { muscle: "Biceps", equipment: "DUMBBELL" },
 };
 

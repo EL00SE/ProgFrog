@@ -38,7 +38,10 @@ const CATALOG: CatalogEntry[] = [
   x("Cable Fly", "Chest", "CABLE"),
   x("Low-to-High Cable Fly", "Chest", "CABLE"),
   x("Machine Chest Press", "Chest", "MACHINE"),
+  x("Incline Machine Press", "Chest", "MACHINE"),
   x("Pec Deck", "Chest", "MACHINE"),
+  x("Machine Fly", "Chest", "MACHINE"),
+  x("Smith Machine Bench Press", "Chest", "MACHINE"),
   x("Push-up", "Chest", "BODYWEIGHT"),
   x("Weighted Dip", "Chest", "BODYWEIGHT"),
 
@@ -58,7 +61,14 @@ const CATALOG: CatalogEntry[] = [
   x("Seated Cable Row", "Back", "CABLE"),
   x("Chest-Supported Dumbbell Row", "Back", "DUMBBELL"),
   x("Single-Arm Dumbbell Row", "Back", "DUMBBELL"),
+  x("Kroc Row", "Back", "DUMBBELL"),
   x("Machine Row", "Back", "MACHINE"),
+  x("Chest-Supported Machine Row", "Back", "MACHINE"),
+  x("Inverted Row", "Back", "BODYWEIGHT"),
+  x("Cable Pullover", "Back", "CABLE"),
+  x("Back Extension", "Back", "MACHINE"),
+  x("Hyperextension", "Back", "MACHINE"),
+  x("Reverse Hyperextension", "Back", "MACHINE"),
 
   // Traps
   x("Barbell Shrug", "Traps", "BARBELL"),
@@ -82,6 +92,10 @@ const CATALOG: CatalogEntry[] = [
   x("Reverse Pec Deck", "Shoulders", "MACHINE"),
   x("Face Pull", "Shoulders", "CABLE"),
   x("Cable Y-Raise", "Shoulders", "CABLE"),
+  x("Upright Row", "Shoulders", "BARBELL"),
+  x("Cable Upright Row", "Shoulders", "CABLE"),
+  x("Landmine Press", "Shoulders", "BARBELL"),
+  x("Incline Y-Raise", "Shoulders", "DUMBBELL"),
 
   // Biceps
   x("Barbell Curl", "Biceps", "BARBELL"),
@@ -91,9 +105,11 @@ const CATALOG: CatalogEntry[] = [
   x("Hammer Curl", "Biceps", "DUMBBELL"),
   x("Preacher Curl", "Biceps", "MACHINE"),
   x("Cable Curl", "Biceps", "CABLE"),
+  x("Cable Hammer Curl", "Biceps", "CABLE"),
   x("Bayesian Cable Curl", "Biceps", "CABLE"),
   x("Concentration Curl", "Biceps", "DUMBBELL"),
   x("Spider Curl", "Biceps", "DUMBBELL"),
+  x("Machine Curl", "Biceps", "MACHINE"),
 
   // Triceps
   x("Close-Grip Bench Press", "Triceps", "BARBELL"),
@@ -104,6 +120,8 @@ const CATALOG: CatalogEntry[] = [
   x("Overhead Cable Extension", "Triceps", "CABLE"),
   x("Overhead Dumbbell Extension", "Triceps", "DUMBBELL"),
   x("Dumbbell Kickback", "Triceps", "DUMBBELL"),
+  x("Cable Kickback", "Triceps", "CABLE"),
+  x("Machine Triceps Extension", "Triceps", "MACHINE"),
   x("Bench Dip", "Triceps", "BODYWEIGHT"),
   x("Diamond Push-up", "Triceps", "BODYWEIGHT"),
 
@@ -120,6 +138,8 @@ const CATALOG: CatalogEntry[] = [
   x("High-Bar Squat", "Quads", "BARBELL"),
   x("Hack Squat", "Quads", "MACHINE"),
   x("Leg Press", "Quads", "MACHINE"),
+  x("Smith Machine Squat", "Quads", "MACHINE"),
+  x("Pendulum Squat", "Quads", "MACHINE"),
   x("Belt Squat", "Quads", "MACHINE"),
   x("Bulgarian Split Squat", "Quads", "DUMBBELL"),
   x("Walking Lunge", "Quads", "DUMBBELL"),
@@ -138,6 +158,7 @@ const CATALOG: CatalogEntry[] = [
   x("Good Morning", "Hamstrings", "BARBELL"),
   x("Lying Leg Curl", "Hamstrings", "MACHINE"),
   x("Seated Leg Curl", "Hamstrings", "MACHINE"),
+  x("Standing Leg Curl", "Hamstrings", "MACHINE"),
   x("Nordic Curl", "Hamstrings", "BODYWEIGHT"),
   x("Glute-Ham Raise", "Hamstrings", "MACHINE"),
 
@@ -148,7 +169,8 @@ const CATALOG: CatalogEntry[] = [
   x("Machine Hip Thrust", "Glutes", "MACHINE"),
   x("Cable Pull-Through", "Glutes", "CABLE"),
   x("Curtsy Lunge", "Glutes", "DUMBBELL"),
-  x("Cable Kickback", "Glutes", "CABLE"),
+  x("Cable Glute Kickback", "Glutes", "CABLE"),
+  x("Single-Leg Hip Thrust", "Glutes", "DUMBBELL"),
   x("Hip Abduction", "Glutes", "MACHINE"),
 
   // Calves
@@ -166,11 +188,19 @@ const CATALOG: CatalogEntry[] = [
   x("Copenhagen Plank", "Core", "BODYWEIGHT", true),
   x("Hanging Leg Raise", "Core", "BODYWEIGHT"),
   x("Hanging Knee Raise", "Core", "BODYWEIGHT"),
-  x("Cable Crunch", "Core", "CABLE"),
-  x("Ab Wheel Rollout", "Core", "BODYWEIGHT"),
+  x("Toes-to-Bar", "Core", "BODYWEIGHT"),
+  x("Sit-up", "Core", "BODYWEIGHT"),
   x("Weighted Decline Sit-up", "Core", "BODYWEIGHT"),
+  x("Crunch", "Core", "BODYWEIGHT"),
+  x("Reverse Crunch", "Core", "BODYWEIGHT"),
+  x("Bicycle Crunch", "Core", "BODYWEIGHT"),
+  x("Dead Bug", "Core", "BODYWEIGHT"),
+  x("Cable Crunch", "Core", "CABLE"),
+  x("Cable Woodchopper", "Core", "CABLE"),
+  x("Ab Wheel Rollout", "Core", "BODYWEIGHT"),
   x("Russian Twist", "Core", "DUMBBELL"),
   x("Pallof Press", "Core", "CABLE"),
+  x("Machine Crunch", "Core", "MACHINE"),
 
   // Full body
   x("Power Clean", "Full body", "BARBELL"),
