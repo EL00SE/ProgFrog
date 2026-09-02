@@ -16,6 +16,9 @@ with offline logging so a dead signal in the weights room never costs you a set.
 - **Offline-first** — a service worker precaches the active workout; mutations
   queue in a localStorage outbox and replay on reconnect, with idempotency keys
   so a crash-replay never double-writes.
+- **Installs like an app** — standalone display, maskable icons, iOS launch
+  screens, app shortcuts, and haptics; carousel swipe between tabs. Reduced-
+  motion and increased-contrast preferences are honoured, targets meet WCAG 2.2.
 - **Training assistant** (optional) — an in-app chat that can see your recent
   training; only shown when `ANTHROPIC_API_KEY` is set.
 
@@ -29,7 +32,7 @@ with offline logging so a dead signal in the weights room never costs you a set.
 | Auth        | [Auth.js v5](https://authjs.dev) — email + password, Google / Facebook / X, JWT           |
 | Database    | PostgreSQL ([Neon](https://neon.tech)) + [Prisma 7](https://www.prisma.io) (pg adapter)   |
 | Charts      | [Recharts](https://recharts.org)                                                          |
-| PWA         | Web manifest + hand-rolled service worker (`public/sw.js`)                                |
+| PWA         | Web manifest + hand-rolled service worker (`public/sw.js`) + iOS launch screens           |
 | Assistant   | [`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript) (streaming) |
 | Env safety  | [@t3-oss/env-nextjs](https://env.t3.gg) + Zod                                             |
 | Unit tests  | Vitest + Testing Library                                                                  |
@@ -104,21 +107,22 @@ In production also set `AUTH_URL` + `APP_URL` to the deployed origin.
 
 ## Scripts
 
-| Script            | Does                                        |
-| ----------------- | ------------------------------------------- |
-| `pnpm dev`        | Dev server on :3001                         |
-| `pnpm build`      | `prisma generate` + production build        |
-| `pnpm start`      | Serve the production build                  |
-| `pnpm typecheck`  | `next typegen` + `tsc --noEmit`             |
-| `pnpm lint`       | ESLint                                      |
-| `pnpm format`     | Prettier write (`format:check` in CI)       |
-| `pnpm test`       | Vitest once (`test:watch` for watch mode)   |
-| `pnpm test:e2e`   | Playwright (builds + starts the app first)  |
-| `pnpm db:migrate` | Create/apply a dev migration                |
-| `pnpm db:deploy`  | Apply migrations (CI/prod)                  |
-| `pnpm db:seed`    | Run `prisma/seed.ts`                        |
-| `pnpm db:studio`  | Prisma Studio                               |
-| `pnpm gen:icons`  | Rasterise the PWA icons from the source SVG |
+| Script            | Does                                                |
+| ----------------- | --------------------------------------------------- |
+| `pnpm dev`        | Dev server on :3001                                 |
+| `pnpm build`      | `prisma generate` + production build                |
+| `pnpm start`      | Serve the production build                          |
+| `pnpm typecheck`  | `next typegen` + `tsc --noEmit`                     |
+| `pnpm lint`       | ESLint                                              |
+| `pnpm format`     | Prettier write (`format:check` in CI)               |
+| `pnpm test`       | Vitest once (`test:watch` for watch mode)           |
+| `pnpm test:e2e`   | Playwright (builds + starts the app first)          |
+| `pnpm db:migrate` | Create/apply a dev migration                        |
+| `pnpm db:deploy`  | Apply migrations (CI/prod)                          |
+| `pnpm db:seed`    | Run `prisma/seed.ts`                                |
+| `pnpm db:studio`  | Prisma Studio                                       |
+| `pnpm gen:icons`  | Rasterise the PWA icons from the source SVG         |
+| `pnpm gen:splash` | Rasterise the iOS launch screens (`public/splash/`) |
 
 ## Layout
 
@@ -143,8 +147,9 @@ src/
     prisma.ts                        PrismaClient singleton (pg driver adapter)
     dal.ts                           Data Access Layer — auth checks live here
     offline-queue.ts                 localStorage mutation outbox + replay
+    password.ts auth-tokens.ts email.ts oauth.ts rate-limit.ts   auth helpers
     haptics.ts  training.ts          domain helpers
-    actions/                         server actions (workouts, templates, …)
+    actions/                         server actions (workouts, templates, auth, …)
     queries/                         read models
   auth.ts  auth.config.ts            Auth.js config (split: edge-safe + full)
   proxy.ts                           Next 16 "proxy" (was middleware)
@@ -155,6 +160,7 @@ prisma/
 prisma.config.ts                     Prisma 7 config (schema path, datasource URL)
 public/
   sw.js                              service worker (precache + offline nav)
+  splash/                            generated iOS launch screens
 ```
 
 ## Notes on the modern bits
@@ -170,11 +176,17 @@ public/
   and body view own their list state and apply edits locally first, then fire a
   server action; server actions revalidate the narrowest path. See
   `src/lib/offline-queue.ts` for the offline outbox.
+- **Mobile & a11y** — carousel tab-swipe (`src/components/page-transition.tsx`)
+  tracks the finger 1:1 with velocity; a global reduced-motion / contrast
+  safety net lives in `globals.css`; response security headers (CSP, HSTS,
+  frame-ancestors) are set in `next.config.ts`.
 
 ## Deploy
 
-- **Vercel**: import the repo, set env vars (`DATABASE_URL`, `AUTH_SECRET`,
-  OAuth pairs, optional `ANTHROPIC_API_KEY`), point at a Neon database. Build
-  command stays `pnpm build`; run `pnpm db:deploy` on schema changes.
+- **Vercel**: import the repo, point at a Neon database, and set the env vars
+  from `.env.example` — at minimum `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` +
+  `APP_URL` (the deployed origin), plus any OAuth pairs / `RESEND_API_KEY` /
+  `ANTHROPIC_API_KEY` you're using. Build command stays `pnpm build`; run
+  `pnpm db:deploy` on schema changes (it is **not** run automatically on deploy).
 - **Docker**: `docker build -t progfrog .` then run with `DATABASE_URL` +
   `AUTH_SECRET` injected.
