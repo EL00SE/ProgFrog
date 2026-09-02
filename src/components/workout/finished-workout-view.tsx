@@ -48,6 +48,10 @@ function SessionTimes({ workout }: { workout: FullWorkout }) {
   const [pending, startTransition] = React.useTransition();
   const started = new Date(workout.startedAt);
   const ended = workout.endedAt ? new Date(workout.endedAt) : null;
+  // No real times when there's no end and the start is just the workout date
+  // (imported history, or a workout that was never timed).
+  const untimed =
+    !ended && Math.abs(started.getTime() - new Date(workout.date).getTime()) < 60_000;
   const [startVal, setStartVal] = React.useState(toLocalInput(started));
   const [endVal, setEndVal] = React.useState(ended ? toLocalInput(ended) : "");
 
@@ -119,23 +123,27 @@ function SessionTimes({ workout }: { workout: FullWorkout }) {
         </>
       ) : (
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Clock className="text-muted-foreground size-4 shrink-0" />
-            <span>
-              {started.toLocaleString("en-US", timeFmt)}
-              {ended ? (
-                <>
-                  {" → "}
-                  {ended.toLocaleString("en-US", timeFmt)}
-                  {ended.getTime() > started.getTime() ? (
-                    <span className="text-muted-foreground">
-                      {"  ·  "}
-                      {formatDuration((ended.getTime() - started.getTime()) / 60000)}
-                    </span>
-                  ) : null}
-                </>
-              ) : null}
-            </span>
+          <div className="text-muted-foreground flex items-center gap-2">
+            <Clock className="size-4 shrink-0" />
+            {untimed ? (
+              <span>Session times not recorded</span>
+            ) : (
+              <span className="text-foreground">
+                {started.toLocaleString("en-US", timeFmt)}
+                {ended ? (
+                  <>
+                    {" → "}
+                    {ended.toLocaleString("en-US", timeFmt)}
+                    {ended.getTime() > started.getTime() ? (
+                      <span className="text-muted-foreground">
+                        {"  ·  "}
+                        {formatDuration((ended.getTime() - started.getTime()) / 60000)}
+                      </span>
+                    ) : null}
+                  </>
+                ) : null}
+              </span>
+            )}
           </div>
           <Button
             variant="ghost"

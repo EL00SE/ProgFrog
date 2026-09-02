@@ -5,10 +5,11 @@
  *
  *   npx tsx prisma/import-history.ts <target-email> <path-to.tsv>
  *
- * Wipes the target user's existing workouts, then recreates them from the file.
- * Each exercise is matched against the seeded catalog (with an alias table);
- * anything unmatched becomes a private custom exercise for that user.
- * Re-runnable — safe to run again after adding rows to the sheet.
+ * Replaces the target user's workouts up to the last date in the file, then
+ * recreates them from it — anything they've logged in the app since the sheet
+ * ends is left alone. Each exercise is matched against the seeded catalog (with
+ * an alias table); anything unmatched becomes a private custom exercise.
+ * Re-runnable. Date column may be `YYYY-MM-DD` or `D/M/YYYY`.
  */
 import "dotenv/config";
 
@@ -106,8 +107,13 @@ function inferEquipment(notes: string): Equipment {
 }
 
 function parseDate(raw: string): Date {
-  const [d, m] = raw.trim().split("/").map(Number);
-  // The sheet has a couple of year typos (2025, 2029); everything is 2026.
+  const s = raw.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12, 0, 0);
+  }
+  // `D/M/YYYY` (day-first). Older sheets had year typos — force 2026.
+  const [d, m] = s.split("/").map(Number);
   return new Date(2026, m - 1, d, 12, 0, 0);
 }
 
@@ -181,7 +187,18 @@ async function main() {
     ]);
   }
 
-  await prisma.workout.deleteMany({ where: { userId: user.id } });
+  // Replace only what the sheet covers; keep anything logged in-app afterwards.
+  const lastDate = [...days.values()]
+    .map((rs) => parseDate(rs[0].date))
+    .reduce((a, b) => (b > a ? b : a), new Date(0));
+  const cutoff = new Date(lastDate);
+  cutoff.setHours(23, 59, 59, 999);
+  const { count: removed } = await prisma.workout.deleteMany({
+    where: { userId: user.id, date: { lte: cutoff } },
+  });
+  console.log(
+    `Cleared ${removed} workouts dated on/before ${lastDate.toISOString().slice(0, 10)}.`,
+  );
 
   let workouts = 0;
   let entries = 0;
@@ -276,6 +293,10 @@ async function main() {
         userId: user.id,
         name: name || first.dayLabel || "Workout",
         date,
+        // No real clock times from the sheet — anchor `startedAt` to the
+        // workout date (not the import timestamp) and leave `endedAt` null so
+        // the finished view shows "times not recorded" rather than a fake span.
+        startedAt: date,
         finishedAt: date,
         unit: "KG",
         notes: withSets.length ? null : "Trained — sets not recorded",
