@@ -23,6 +23,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "gen:icons": "tsx scripts/gen-icons.mts",
+    "gen:splash": "tsx scripts/gen-splash.mts",
     "postinstall": "prisma generate",
     "prepare": "husky"
   },

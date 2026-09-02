@@ -17,6 +17,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// iOS launch screens. Portrait CSS points × dpr — keep in sync with
+// scripts/gen-splash.mts, which renders the matching PNGs into public/splash.
+const IOS_SPLASH: [number, number, number][] = [
+  [375, 667, 2],
+  [414, 736, 3],
+  [375, 812, 3],
+  [414, 896, 2],
+  [414, 896, 3],
+  [390, 844, 3],
+  [428, 926, 3],
+  [393, 852, 3],
+  [430, 932, 3],
+  [402, 874, 3],
+  [440, 956, 3],
+];
+
 export const metadata: Metadata = {
   title: {
     default: "ProgFrog",
@@ -29,6 +45,10 @@ export const metadata: Metadata = {
     capable: true,
     title: "ProgFrog",
     statusBarStyle: "black-translucent",
+    startupImage: IOS_SPLASH.map(([w, h, r]) => ({
+      url: `/splash/${w * r}x${h * r}.png`,
+      media: `(device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait)`,
+    })),
   },
 };
 
