@@ -212,7 +212,7 @@ export function FinishedWorkoutView({
         </p>
       ) : null}
 
-      <div className="grid items-start gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         {groupLinkedExercises(workout.exercises).map((group, gi) => {
           if (group.length === 1) {
             return <ExerciseBlock key={group[0].id} we={group[0]} unit={unit} />;
@@ -221,7 +221,7 @@ export function FinishedWorkoutView({
           return (
             <div
               key={group[0].id}
-              className="bg-muted/20 flex flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
+              className="bg-muted/20 flex h-full flex-col gap-2 rounded-xl border border-l-4 p-2 sm:p-3"
               style={{ borderLeftColor: accent }}
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-1">
@@ -280,7 +280,7 @@ function ExerciseBlock({
     : 0;
 
   return (
-    <Card className={cn(inGroup && "shadow-none")}>
+    <Card className={cn(!inGroup && "h-full", inGroup && "shadow-none")}>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
           {we.exercise?.name ?? roleLabel(we.muscle, we.role)}

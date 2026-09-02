@@ -174,8 +174,8 @@ function ExerciseRow({
   const isArchived = "isArchived" in exercise && exercise.isArchived;
 
   return (
-    <Card size="sm" className="py-0">
-      <CardContent className="flex items-center gap-2 py-1.5">
+    <Card size="sm" className="h-full py-0">
+      <CardContent className="flex h-full items-center gap-2 py-1.5">
         <span
           className={cn(
             "truncate text-sm font-medium",
