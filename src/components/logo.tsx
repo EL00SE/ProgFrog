@@ -2,11 +2,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * ProgFrog mark — a frog-headed lifter pressing a dumbbell overhead. Body uses
- * the brand green (`--brand`); eyes white, pupils `--brand-ink`. Scales from 16px.
+ * the brand amber (`--brand`); eyes white, pupils `--brand-ink`. Scales from 16px.
  */
 export function FrogMark({ className }: { className?: string }) {
-  const brand = "var(--brand, #3e8757)";
-  const ink = "var(--brand-ink, #0b3b2e)";
+  const brand = "var(--brand, #c17f21)";
+  const ink = "var(--brand-ink, #3f2c17)";
   return (
     <svg
       viewBox="0 0 32 32"
@@ -85,7 +85,7 @@ export function Logo({
       <FrogMark className={cn("size-6", markClassName)} />
       {showText ? (
         <span className="font-heading text-[0.95rem] leading-none font-semibold tracking-tight">
-          Prog<span style={{ color: "var(--brand, #3e8757)" }}>Frog</span>
+          Prog<span style={{ color: "var(--brand, #c17f21)" }}>Frog</span>
         </span>
       ) : null}
     </span>

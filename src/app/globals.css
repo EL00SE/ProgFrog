@@ -50,44 +50,45 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* "Golden hour" — warm amber primary, a natural frog green reserved for the
- * logo, and neutrals with a faint warm tint so the app doesn't read like a
- * dark-mode analytics template. */
+/* "Golden hour" — warm amber primary on a paper-cream ground, with warm
+ * espresso ink and sand-tinted neutrals so light mode reads as its own thing
+ * rather than black-on-white with an accent bolted on. Dark mode carries the
+ * same warmth. */
 :root {
-  --background: oklch(0.994 0.004 84);
-  --foreground: oklch(0.19 0.012 62);
-  --card: oklch(1 0.002 84);
-  --card-foreground: oklch(0.19 0.012 62);
-  --popover: oklch(1 0.002 84);
-  --popover-foreground: oklch(0.19 0.012 62);
-  --primary: oklch(0.6 0.135 68);
-  --primary-foreground: oklch(0.99 0.008 84);
-  --secondary: oklch(0.965 0.008 80);
-  --secondary-foreground: oklch(0.25 0.012 62);
-  --muted: oklch(0.965 0.008 80);
-  --muted-foreground: oklch(0.53 0.018 66);
-  --accent: oklch(0.95 0.035 80);
-  --accent-foreground: oklch(0.42 0.09 66);
+  --background: oklch(0.955 0.019 84);
+  --foreground: oklch(0.28 0.021 60);
+  --card: oklch(0.982 0.013 85);
+  --card-foreground: oklch(0.28 0.021 60);
+  --popover: oklch(0.982 0.013 85);
+  --popover-foreground: oklch(0.28 0.021 60);
+  --primary: oklch(0.585 0.13 66);
+  --primary-foreground: oklch(0.985 0.012 85);
+  --secondary: oklch(0.915 0.024 82);
+  --secondary-foreground: oklch(0.3 0.02 60);
+  --muted: oklch(0.915 0.024 82);
+  --muted-foreground: oklch(0.47 0.027 62);
+  --accent: oklch(0.885 0.05 80);
+  --accent-foreground: oklch(0.4 0.095 64);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.01 80);
-  --input: oklch(0.9 0.01 80);
-  --ring: oklch(0.6 0.135 68);
-  --brand: oklch(0.585 0.125 150);
-  --brand-ink: oklch(0.31 0.055 162);
-  --chart-1: oklch(0.68 0.15 74);
-  --chart-2: oklch(0.58 0.115 150);
-  --chart-3: oklch(0.6 0.15 40);
-  --chart-4: oklch(0.6 0.1 225);
-  --chart-5: oklch(0.52 0.13 350);
+  --border: oklch(0.858 0.028 80);
+  --input: oklch(0.858 0.028 80);
+  --ring: oklch(0.585 0.13 66);
+  --brand: oklch(0.66 0.15 72);
+  --brand-ink: oklch(0.32 0.055 55);
+  --chart-1: oklch(0.63 0.145 72);
+  --chart-2: oklch(0.52 0.1 150);
+  --chart-3: oklch(0.57 0.14 40);
+  --chart-4: oklch(0.55 0.09 225);
+  --chart-5: oklch(0.5 0.12 350);
   --radius: 0.7rem;
-  --sidebar: oklch(0.985 0.004 84);
-  --sidebar-foreground: oklch(0.19 0.012 62);
-  --sidebar-primary: oklch(0.6 0.135 68);
-  --sidebar-primary-foreground: oklch(0.99 0.008 84);
-  --sidebar-accent: oklch(0.965 0.008 80);
-  --sidebar-accent-foreground: oklch(0.25 0.012 62);
-  --sidebar-border: oklch(0.9 0.01 80);
-  --sidebar-ring: oklch(0.6 0.135 68);
+  --sidebar: oklch(0.94 0.02 84);
+  --sidebar-foreground: oklch(0.28 0.021 60);
+  --sidebar-primary: oklch(0.585 0.13 66);
+  --sidebar-primary-foreground: oklch(0.985 0.012 85);
+  --sidebar-accent: oklch(0.915 0.024 82);
+  --sidebar-accent-foreground: oklch(0.3 0.02 60);
+  --sidebar-border: oklch(0.858 0.028 80);
+  --sidebar-ring: oklch(0.585 0.13 66);
 }
 
 .dark {
@@ -109,8 +110,8 @@
   --border: oklch(0.9 0.03 84 / 11%);
   --input: oklch(0.9 0.03 84 / 15%);
   --ring: oklch(0.81 0.155 80);
-  --brand: oklch(0.68 0.13 150);
-  --brand-ink: oklch(0.31 0.055 162);
+  --brand: oklch(0.82 0.165 82);
+  --brand-ink: oklch(0.32 0.055 55);
   --chart-1: oklch(0.8 0.16 80);
   --chart-2: oklch(0.67 0.125 150);
   --chart-3: oklch(0.66 0.16 42);

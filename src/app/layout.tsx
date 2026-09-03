@@ -54,7 +54,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fdfbf5" },
+    { media: "(prefers-color-scheme: light)", color: "#f6efe2" },
     { media: "(prefers-color-scheme: dark)", color: "#14110c" },
   ],
   // Let the app draw into the notch / home-indicator area once installed.
