@@ -120,6 +120,31 @@ function isExerciseDone(we: WE) {
 const SNAP_PREFIX = "progfrog:wsnap:";
 const SNAP_TTL = 24 * 60 * 60 * 1000;
 
+/**
+ * Merge a restored snapshot with the fresh server data. The snapshot owns the
+ * per-set logging (it may hold edits the server hasn't got yet), but the server
+ * is authoritative for *which exercise fills a slot* — so an entry that lost its
+ * `exercise` in the snapshot round-trip is re-linked from the server rather than
+ * rendering as a blank "choose an exercise" slot.
+ */
+function reconcile(snap: WE[], server: WE[]): WE[] {
+  const srv = new Map(server.map((e) => [e.id, e]));
+  return snap.map((e) => {
+    if (e.exercise?.name) return e; // snapshot entry is already displayable
+    const s = srv.get(e.id);
+    if (s?.exercise) {
+      return {
+        ...e,
+        exerciseId: s.exerciseId,
+        exercise: s.exercise,
+        muscle: e.muscle ?? s.muscle,
+        equipment: e.equipment ?? s.equipment,
+      } as WE;
+    }
+    return e;
+  });
+}
+
 function loadSnapshot(workoutId: string, fallback: WE[]): WE[] {
   if (typeof window === "undefined") return fallback;
   try {
@@ -128,7 +153,9 @@ function loadSnapshot(workoutId: string, fallback: WE[]): WE[] {
     const snap = JSON.parse(raw) as { at: number; exercises: WE[] };
     // Only trust it while there's unsynced work (or we're offline) and it's fresh.
     const useful = outbox.pending() > 0 || !navigator.onLine;
-    if (useful && Date.now() - snap.at < SNAP_TTL) return snap.exercises;
+    if (useful && Date.now() - snap.at < SNAP_TTL) {
+      return reconcile(snap.exercises, fallback);
+    }
   } catch {
     /* ignore corrupt snapshot */
   }
@@ -179,6 +206,7 @@ function optimisticWE(
           name: ex.name,
           equipment: ex.equipment,
           isTimed: ex.isTimed ?? false,
+          muscle: ex.muscle ?? null,
         }
       : null,
     muscle: opts.muscle ?? ex?.muscle ?? null,
@@ -222,6 +250,9 @@ export function WorkoutLogger({
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
   // Id of the exercise just added — scroll it into view and flash it briefly.
   const [newWeId, setNewWeId] = React.useState<string | null>(null);
+  // Set once the workout is being finished/discarded, so the debounced snapshot
+  // save can't re-write the file we just cleared.
+  const closing = React.useRef(false);
   const unit = workout.unit;
 
   React.useEffect(() => {
@@ -234,7 +265,9 @@ export function WorkoutLogger({
 
   // Persist local state so a reload (from the cached page, offline) keeps edits.
   React.useEffect(() => {
-    const t = setTimeout(() => saveSnapshot(workout.id, exercises), 600);
+    const t = setTimeout(() => {
+      if (!closing.current) saveSnapshot(workout.id, exercises);
+    }, 600);
     return () => clearTimeout(t);
   }, [workout.id, exercises]);
 
@@ -298,6 +331,7 @@ export function WorkoutLogger({
               ...e,
               exerciseId,
               equipment: (exercise?.equipment ?? e.equipment) as WE["equipment"],
+              muscle: e.muscle ?? exercise?.muscle ?? null,
               exercise: exercise
                 ? ({
                     ...(e.exercise ?? {}),
@@ -305,6 +339,7 @@ export function WorkoutLogger({
                     name: exercise.name,
                     equipment: exercise.equipment,
                     isTimed: exercise.isTimed ?? false,
+                    muscle: exercise.muscle ?? null,
                   } as WE["exercise"])
                 : e.exercise,
             }
@@ -393,6 +428,7 @@ export function WorkoutLogger({
       return;
     }
     haptic([30, 60, 30]);
+    closing.current = true;
     if (online && syncPending === 0) {
       clearSnapshot(workout.id);
       startTransition(() => finishWorkout(workout.id));
@@ -415,6 +451,7 @@ export function WorkoutLogger({
       toast.error("Reconnect to discard this workout.");
       return;
     }
+    closing.current = true;
     clearSnapshot(workout.id);
     startTransition(() => deleteWorkout(workout.id));
   }
