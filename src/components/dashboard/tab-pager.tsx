@@ -10,10 +10,12 @@ const SETTLE_MS = 300;
 const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const PUSH_OFFSET = 16;
 
-// Don't start a horizontal drag from inside these — form controls, the swipeable
-// exercise-picker sheet, charts, and any element that scrolls horizontally.
+// Only block a drag from things that own the horizontal axis themselves — text
+// fields, sliders, the Select trigger, charts, and anything that scrolls
+// sideways. Links, buttons and cards stay swipeable: the tap/drag threshold
+// already tells a tap from a drag, so most of a list page can start a swipe.
 const NO_SWIPE =
-  "input,textarea,select,button,a,[role=slider],[data-slot=select-trigger]," +
+  "input,textarea,[role=slider],[role=combobox],[data-slot=select-trigger]," +
   "[data-noswipe],.recharts-wrapper,.overflow-x-auto,[data-scroll-x]";
 
 const prefersReducedMotion = () =>
@@ -108,9 +110,20 @@ export function TabPager({
     let lastT = 0;
     let lastX = 0;
     let vx = 0;
+    let swiped = false;
 
     const drop = () => {
       el.style.willChange = "";
+    };
+
+    // Eat the emulated click that follows a drag, so swiping across a card /
+    // link doesn't also open it.
+    const onClickCapture = (e: MouseEvent) => {
+      if (swiped) {
+        e.preventDefault();
+        e.stopPropagation();
+        swiped = false;
+      }
     };
 
     const onStart = (e: TouchEvent) => {
@@ -124,6 +137,7 @@ export function TabPager({
       lastT = e.timeStamp;
       active = true;
       horizontal = false;
+      swiped = false;
       dx = 0;
       vx = 0;
       el.style.willChange = "transform";
@@ -162,6 +176,10 @@ export function TabPager({
       active = false;
       if (!horizontal) return drop();
       horizontal = false;
+      swiped = true;
+      window.setTimeout(() => {
+        swiped = false;
+      }, 400);
 
       const i = index;
       const passed = Math.abs(dx) > w * 0.32;
@@ -188,11 +206,13 @@ export function TabPager({
     el.addEventListener("touchmove", onMove, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: true });
     el.addEventListener("touchcancel", onEnd, { passive: true });
+    el.addEventListener("click", onClickCapture, true);
     return () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
+      el.removeEventListener("click", onClickCapture, true);
     };
   }, [isDetail, isMobile, index, tabs, titles]);
 
