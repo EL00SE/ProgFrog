@@ -53,7 +53,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b3b2e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fdfbf5" },
+    { media: "(prefers-color-scheme: dark)", color: "#14110c" },
+  ],
   // Let the app draw into the notch / home-indicator area once installed.
   viewportFit: "cover",
   // Shrink the layout viewport when the on-screen keyboard opens, so

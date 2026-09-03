@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
  * the brand green (`--brand`); eyes white, pupils `--brand-ink`. Scales from 16px.
  */
 export function FrogMark({ className }: { className?: string }) {
-  const brand = "var(--brand, #16a34a)";
+  const brand = "var(--brand, #3e8757)";
   const ink = "var(--brand-ink, #0b3b2e)";
   return (
     <svg
@@ -85,7 +85,7 @@ export function Logo({
       <FrogMark className={cn("size-6", markClassName)} />
       {showText ? (
         <span className="font-heading text-[0.95rem] leading-none font-semibold tracking-tight">
-          Prog<span style={{ color: "var(--brand, #16a34a)" }}>Frog</span>
+          Prog<span style={{ color: "var(--brand, #3e8757)" }}>Frog</span>
         </span>
       ) : null}
     </span>

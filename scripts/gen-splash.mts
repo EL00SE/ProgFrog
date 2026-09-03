@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import sharp from "sharp";
 
-const BG = "#0b3b2e";
+const BG = "#14110c";
 const root = process.cwd();
 const outDir = join(root, "public", "splash");
 mkdirSync(outDir, { recursive: true });

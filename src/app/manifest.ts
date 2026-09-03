@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // installed PWA (Android honors this) fails WCAG 1.3.4 for anyone who
     // mounts their phone in landscape or reads in landscape by preference.
     orientation: "any",
-    background_color: "#0b3b2e",
-    theme_color: "#0b3b2e",
+    background_color: "#14110c",
+    theme_color: "#14110c",
     categories: ["health", "fitness", "lifestyle"],
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

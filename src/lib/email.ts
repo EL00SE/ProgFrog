@@ -34,13 +34,13 @@ async function send({ to, subject, html, text }: Mail) {
 }
 
 function layout(heading: string, body: string, cta: { label: string; url: string }) {
-  return `<!doctype html><html><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b3b2e;margin:0;padding:32px">
+  return `<!doctype html><html><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#14110c;margin:0;padding:32px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="440" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;padding:32px">
-      <tr><td style="font-size:20px;font-weight:700;color:#0b3b2e;padding-bottom:12px">ProgFrog</td></tr>
+      <tr><td style="font-size:20px;font-weight:700;color:#0b3b2e;padding-bottom:12px">Prog<span style="color:#3e8757">Frog</span></td></tr>
       <tr><td style="font-size:16px;font-weight:600;color:#111;padding-bottom:8px">${heading}</td></tr>
       <tr><td style="font-size:14px;color:#444;line-height:1.5;padding-bottom:20px">${body}</td></tr>
-      <tr><td><a href="${cta.url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px">${cta.label}</a></td></tr>
+      <tr><td><a href="${cta.url}" style="display:inline-block;background:#3e8757;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px">${cta.label}</a></td></tr>
       <tr><td style="font-size:12px;color:#888;padding-top:20px;word-break:break-all">Or paste this link into your browser:<br>${cta.url}</td></tr>
     </table>
   </td></tr></table>
