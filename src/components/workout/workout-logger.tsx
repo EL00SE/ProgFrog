@@ -788,7 +788,9 @@ function ExerciseCard({
               </div>
             )}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-              {we.muscle ? <Badge variant="secondary">{we.muscle}</Badge> : null}
+              {we.exercise && we.muscle ? (
+                <Badge variant="secondary">{we.muscle}</Badge>
+              ) : null}
               {timed ? <Badge variant="ghost">Timed</Badge> : null}
               {we.linkToNext ? (
                 <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
