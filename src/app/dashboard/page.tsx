@@ -242,7 +242,7 @@ function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
           Sets per muscle · by week
         </h2>
         <span className="text-muted-foreground text-[0.7rem]">
-          working sets · avg = per week
+          working sets · avg = per week trained
         </span>
       </div>
       <Card size="sm">

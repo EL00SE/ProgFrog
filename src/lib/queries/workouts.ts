@@ -201,8 +201,9 @@ const mean1 = (xs: number[]) =>
 
 /**
  * Working sets (warm-ups excluded) each muscle group received, bucketed into the
- * last {@link MUSCLE_WEEKS_SHOWN} weeks that contain a workout. `avg` is the mean
- * across those weeks — "sets per muscle group per week".
+ * last {@link MUSCLE_WEEKS_SHOWN} weeks that contain a workout. A row's `avg` is
+ * the mean over the weeks that muscle was actually trained — weeks it got no
+ * sets are left out — so it reads as "sets per session-week for this muscle".
  */
 export function weeklyMuscleSets(
   workouts: GridWorkout[],
@@ -247,7 +248,8 @@ export function weeklyMuscleSets(
 
   const rows = muscles.map((muscle) => {
     const counts = weekMs.map((ms) => byWeek.get(ms)!.get(muscle) ?? 0);
-    return { muscle, counts, avg: mean1(counts) };
+    // Average only over the weeks this muscle was trained.
+    return { muscle, counts, avg: mean1(counts.filter((c) => c > 0)) };
   });
   const totalsCounts = weekMs.map((ms) =>
     [...byWeek.get(ms)!.values()].reduce((s, x) => s + x, 0),
