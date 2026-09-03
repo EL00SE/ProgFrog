@@ -15,8 +15,9 @@ with offline logging so a dead signal in the weights room never costs you a set.
   workout you already logged (as exact exercises or as open muscle/role slots).
 - **Progress** — estimated 1-rep max, heaviest set and total volume per exercise
   or muscle role, plus bodyweight tracking. The dashboard also grids working sets
-  per muscle group across the last twelve training weeks, averaged over the weeks
-  each muscle was actually trained.
+  per muscle group across the last twelve training weeks, with a true weekly rate
+  (sets ÷ the elapsed block, so a 6- or 8-day split still reads right) and a
+  per-session figure.
 - **Offline-first** — a service worker precaches the active workout; mutations
   queue in a localStorage outbox and replay on reconnect, with idempotency keys
   so a crash-replay never double-writes.

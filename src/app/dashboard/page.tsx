@@ -234,15 +234,16 @@ function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
   const labels = data.weeks.map((iso) =>
     formatDate(iso, { month: "short", day: "numeric" }),
   );
+  const divide = "border-border/70 border-l";
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
         <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
           Sets per muscle · by week
         </h2>
         <span className="text-muted-foreground text-[0.7rem]">
-          working sets · avg = per week trained
+          working sets · rates over a {data.spanWeeks}-wk block
         </span>
       </div>
       <Card size="sm">
@@ -261,9 +262,12 @@ function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
                     {label}
                   </th>
                 ))}
-                <th className="text-foreground px-3 py-1.5 text-right font-semibold">
-                  avg
+                <th
+                  className={`text-foreground px-3 py-1.5 text-right font-semibold ${divide}`}
+                >
+                  /wk
                 </th>
+                <th className="px-3 py-1.5 text-right font-medium">/sess</th>
               </tr>
             </thead>
             <tbody>
@@ -283,8 +287,13 @@ function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
                       {c === 0 ? "·" : c}
                     </td>
                   ))}
-                  <td className="text-primary px-3 py-1.5 text-right font-semibold">
-                    {row.avg}
+                  <td
+                    className={`text-primary px-3 py-1.5 text-right font-semibold ${divide}`}
+                  >
+                    {row.perWeek}
+                  </td>
+                  <td className="text-muted-foreground px-3 py-1.5 text-right">
+                    {row.perSession}
                   </td>
                 </tr>
               ))}
@@ -300,8 +309,13 @@ function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
                     {c}
                   </td>
                 ))}
-                <td className="text-primary px-3 py-1.5 text-right font-semibold">
-                  {data.totals.avg}
+                <td
+                  className={`text-primary px-3 py-1.5 text-right font-semibold ${divide}`}
+                >
+                  {data.totals.perWeek}
+                </td>
+                <td className="text-muted-foreground px-3 py-1.5 text-right font-medium">
+                  {data.totals.perSession}
                 </td>
               </tr>
             </tbody>

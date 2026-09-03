@@ -178,13 +178,25 @@ export type DashboardStats = Awaited<ReturnType<typeof getDashboardData>>["stats
 /** How many recent training weeks the dashboard grid shows. */
 const MUSCLE_WEEKS_SHOWN = 12;
 
+export type MuscleRow = {
+  muscle: string;
+  /** Working sets in each shown week, oldest → newest. */
+  counts: number[];
+  /** Sets ÷ weeks of elapsed training in the block — a true 7-day rate. */
+  perWeek: number;
+  /** Sets ÷ the number of sessions that actually hit this muscle. */
+  perSession: number;
+};
+
 export type WeeklyMuscleSets = {
   /** `yyyy-mm-dd` of each shown week's Sunday, oldest → newest. */
   weeks: string[];
+  /** Length of the training block the rates are over, in weeks. */
+  spanWeeks: number;
   /** One row per muscle group trained in the window, most-trained first. */
-  rows: { muscle: string; counts: number[]; avg: number }[];
-  /** All muscle groups combined, per week. */
-  totals: { counts: number[]; avg: number };
+  rows: MuscleRow[];
+  /** All muscle groups combined. */
+  totals: { counts: number[]; perWeek: number; perSession: number };
 };
 
 type GridWorkout = {
@@ -196,25 +208,50 @@ type GridWorkout = {
   }[];
 };
 
-const mean1 = (xs: number[]) =>
-  xs.length ? Math.round((xs.reduce((s, x) => s + x, 0) / xs.length) * 10) / 10 : 0;
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * Working sets (warm-ups excluded) each muscle group received, bucketed into the
- * last {@link MUSCLE_WEEKS_SHOWN} weeks that contain a workout. A row's `avg` is
- * the mean over the weeks that muscle was actually trained — weeks it got no
- * sets are left out — so it reads as "sets per session-week for this muscle".
+ * Working sets (warm-ups excluded) each muscle group received, over the last
+ * {@link MUSCLE_WEEKS_SHOWN} weeks that contain a workout.
+ *
+ * `perWeek` divides by the elapsed weeks of the training block (first to last
+ * workout), not by calendar weeks — so a 6- or 8-day split that drifts against
+ * the Sun–Sat boundary still reads as a true weekly rate. `perSession` divides
+ * by the number of sessions that hit the muscle, which is the cycle-agnostic
+ * unit for a rotating split.
  */
 export function weeklyMuscleSets(
   workouts: GridWorkout[],
   weeksShown = MUSCLE_WEEKS_SHOWN,
 ): WeeklyMuscleSets {
-  // weekStart(ms) → muscle → count
+  // Which weeks to show: the most recent `weeksShown` that contain a workout.
+  const weeksWithWork = new Set<number>();
+  for (const w of workouts) weeksWithWork.add(startOfWeek(w.date).getTime());
+  const weekMs = [...weeksWithWork]
+    .sort((a, b) => b - a)
+    .slice(0, weeksShown)
+    .sort((a, b) => a - b);
+  const shown = new Set(weekMs);
+
   const byWeek = new Map<number, Map<string, number>>();
+  const totalByMuscle = new Map<string, number>();
+  const sessionsByMuscle = new Map<string, number>();
+  let firstMs = Infinity;
+  let lastMs = -Infinity;
+  let sessionCount = 0;
+
   for (const w of workouts) {
     const wk = startOfWeek(w.date).getTime();
+    if (!shown.has(wk)) continue;
+    sessionCount += 1;
+    firstMs = Math.min(firstMs, w.date.getTime());
+    lastMs = Math.max(lastMs, w.date.getTime());
     const perMuscle = byWeek.get(wk) ?? new Map<string, number>();
     byWeek.set(wk, perMuscle);
+
+    // Roll this session's sets up per muscle first, so "sessions that hit it"
+    // counts the workout once however many exercises targeted the muscle.
+    const thisSession = new Map<string, number>();
     for (const we of w.exercises) {
       const muscle = we.muscle ?? we.exercise?.muscle ?? "Other";
       let n = 0;
@@ -222,21 +259,18 @@ export function weeklyMuscleSets(
         if (s.type === "WARMUP") continue;
         if (s.reps > 0 || (s.seconds ?? 0) > 0) n += 1;
       }
-      if (n > 0) perMuscle.set(muscle, (perMuscle.get(muscle) ?? 0) + n);
+      if (n > 0) thisSession.set(muscle, (thisSession.get(muscle) ?? 0) + n);
     }
-  }
-
-  const weekMs = [...byWeek.keys()]
-    .sort((a, b) => b - a)
-    .slice(0, weeksShown)
-    .sort((a, b) => a - b);
-
-  const totalByMuscle = new Map<string, number>();
-  for (const ms of weekMs) {
-    for (const [muscle, n] of byWeek.get(ms)!) {
+    for (const [muscle, n] of thisSession) {
+      perMuscle.set(muscle, (perMuscle.get(muscle) ?? 0) + n);
       totalByMuscle.set(muscle, (totalByMuscle.get(muscle) ?? 0) + n);
+      sessionsByMuscle.set(muscle, (sessionsByMuscle.get(muscle) ?? 0) + 1);
     }
   }
+
+  const spanWeeks =
+    lastMs > firstMs ? Math.max(1, (lastMs - firstMs) / (7 * 24 * 60 * 60 * 1000)) : 1;
+
   const order = (m: string) => {
     const i = (MUSCLE_GROUPS as readonly string[]).indexOf(m);
     return i === -1 ? MUSCLE_GROUPS.length : i;
@@ -246,18 +280,31 @@ export function weeklyMuscleSets(
       (totalByMuscle.get(b) ?? 0) - (totalByMuscle.get(a) ?? 0) || order(a) - order(b),
   );
 
-  const rows = muscles.map((muscle) => {
-    const counts = weekMs.map((ms) => byWeek.get(ms)!.get(muscle) ?? 0);
-    // Average only over the weeks this muscle was trained.
-    return { muscle, counts, avg: mean1(counts.filter((c) => c > 0)) };
+  const rows: MuscleRow[] = muscles.map((muscle) => {
+    const counts = weekMs.map((ms) => byWeek.get(ms)?.get(muscle) ?? 0);
+    const total = totalByMuscle.get(muscle) ?? 0;
+    const sessions = sessionsByMuscle.get(muscle) ?? 0;
+    return {
+      muscle,
+      counts,
+      perWeek: round1(total / spanWeeks),
+      perSession: sessions ? round1(total / sessions) : 0,
+    };
   });
+
   const totalsCounts = weekMs.map((ms) =>
-    [...byWeek.get(ms)!.values()].reduce((s, x) => s + x, 0),
+    [...(byWeek.get(ms)?.values() ?? [])].reduce((s, x) => s + x, 0),
   );
+  const grandTotal = totalsCounts.reduce((s, x) => s + x, 0);
 
   return {
     weeks: weekMs.map((ms) => localDateKey(new Date(ms))),
+    spanWeeks: round1(spanWeeks),
     rows,
-    totals: { counts: totalsCounts, avg: mean1(totalsCounts) },
+    totals: {
+      counts: totalsCounts,
+      perWeek: round1(grandTotal / spanWeeks),
+      perSession: sessionCount ? round1(grandTotal / sessionCount) : 0,
+    },
   };
 }
