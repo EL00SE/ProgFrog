@@ -13,9 +13,9 @@ const TABS = [
   "/dashboard/settings",
 ];
 
-// The four tabs you can swipe between on mobile (Dashboard and Settings are the
-// ends and only reachable by tap).
-const SWIPE_TABS = TABS.slice(1, 5);
+// The five bottom-nav tabs you can swipe between on mobile. Settings lives in
+// the header menu and is tap-only.
+const SWIPE_TABS = TABS.slice(0, 5);
 
 const NO_SWIPE =
   "input,textarea,select,button,a,[role=slider],[data-slot=select-trigger]," +
@@ -55,6 +55,11 @@ const prefersReducedMotion = () =>
  *  - slides new content in from the direction you navigated,
  *  - on touch, drag the page left/right 1:1 with the finger and release (past a
  *    third of the width, or with a flick) to change tabs — carousel style.
+ *
+ * `will-change: transform` is only ever set for the length of an animation or an
+ * active drag, never at rest — a permanent hint on this full-height wrapper
+ * makes a huge GPU layer (janky on the long list pages) and suppresses the
+ * browser's scroll anchoring (which made the logger jump when a set was logged).
  */
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -73,15 +78,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     swipeEnter = 0;
     lastPath = pathname;
 
-    // A swipeable tab keeps a persistent compositor layer so the 1:1 drag stays
-    // on the GPU; every other page drops the hint once idle so it doesn't
-    // suppress the browser's scroll anchoring (which made the logger jump).
-    const idleWillChange = canSwipe ? "transform" : "";
-
     if (dir === "none" || prefersReducedMotion()) {
       el.style.transform = "";
       el.style.opacity = "";
-      el.style.willChange = idleWillChange;
+      el.style.willChange = "";
       return;
     }
 
@@ -101,10 +101,8 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       el.style.transform = "translate3d(0,0,0)";
       el.style.opacity = "1";
     });
-    // Once settled, drop the inline transform/opacity and (on non-swipe pages)
-    // the compositing hint too, so it stops suppressing scroll anchoring.
     const clear = window.setTimeout(() => {
-      el.style.willChange = idleWillChange;
+      el.style.willChange = "";
       el.style.transition = "";
       el.style.transform = "";
       el.style.opacity = "";
@@ -113,7 +111,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       cancelAnimationFrame(raf);
       window.clearTimeout(clear);
     };
-  }, [pathname, canSwipe]);
+  }, [pathname]);
 
   // Warm the swipe neighbours so releasing the gesture lands instantly.
   React.useEffect(() => {
@@ -139,6 +137,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     const width = () => el.offsetWidth || window.innerWidth;
     const atStart = () => swipeIndex === 0;
     const atEnd = () => swipeIndex === SWIPE_TABS.length - 1;
+    const drop = () => {
+      el.style.willChange = "";
+    };
 
     const onStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
@@ -153,6 +154,8 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       dx = 0;
       vx = 0;
       el.style.transition = "none";
+      // Promote to a layer now so the first drag frames aren't a paint.
+      el.style.willChange = "transform";
     };
 
     const onMove = (e: TouchEvent) => {
@@ -165,6 +168,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
         if (Math.abs(my) > Math.abs(mx)) {
           active = false; // vertical scroll — leave it alone
+          drop();
           return;
         }
         horizontal = true;
@@ -184,9 +188,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     };
 
     const onEnd = () => {
-      if (!active) return;
+      if (!active) return drop();
       active = false;
-      if (!horizontal) return;
+      if (!horizontal) return drop();
       horizontal = false;
 
       const w = width();
@@ -201,12 +205,13 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         swipeEnter = goNext ? 1 : -1;
         el.style.transform = `translate3d(${goNext ? -w : w}px,0,0)`;
         router.push(SWIPE_TABS[swipeIndex + (goNext ? 1 : -1)]);
+        // this wrapper unmounts on nav; the incoming page owns its own hint
       } else {
-        // snap back; keep will-change (this is a swipe page) for the next drag
         el.style.transform = "translate3d(0,0,0)";
         window.setTimeout(() => {
           el.style.transition = "";
           el.style.transform = "";
+          drop();
         }, SETTLE_MS + 60);
       }
     };
@@ -224,12 +229,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   }, [canSwipe, swipeIndex, router]);
 
   return (
-    <div
-      key={pathname}
-      ref={ref}
-      className="min-h-full"
-      style={canSwipe ? { willChange: "transform" } : undefined}
-    >
+    <div key={pathname} ref={ref} className="min-h-full">
       {children}
     </div>
   );

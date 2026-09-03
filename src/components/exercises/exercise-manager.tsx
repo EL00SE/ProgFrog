@@ -174,7 +174,12 @@ function ExerciseRow({
   const isArchived = "isArchived" in exercise && exercise.isArchived;
 
   return (
-    <Card size="sm" className="h-full py-0">
+    // Skip rendering rows that are off-screen — the catalog runs to ~160 rows,
+    // and a full-height layer is what made swiping this tab crawl.
+    <Card
+      size="sm"
+      className="h-full py-0 [contain-intrinsic-size:auto_2.5rem] [content-visibility:auto]"
+    >
       <CardContent className="flex h-full items-center gap-2 py-1.5">
         <span
           className={cn(
