@@ -52,36 +52,34 @@ export function FrogMark({ className }: { className?: string }) {
         transform="rotate(-24 19 13.6)"
         fill={brand}
       />
-      {/* reaching arms */}
+      {/* reaching arms, webbed front hand + tucked rear fist */}
       <path
-        d="M22 13.6C23.8 13 25.5 12.8 27.1 13"
+        d="M22.2 13.7C23.8 13.1 25.3 12.9 26.6 13.1"
         stroke={brand}
         strokeWidth="2"
         strokeLinecap="round"
         fill="none"
       />
       <path
-        d="M22.6 11.6C24.5 10.6 26.3 10.1 28.1 10.3"
+        d="M22.6 11.6C24.5 10.7 26.2 10.2 27.7 10.3"
         stroke={brand}
-        strokeWidth="2.2"
+        strokeWidth="2.1"
         strokeLinecap="round"
         fill="none"
       />
       <path
-        d="M27.7 9.4L29.3 9.5M27.9 10.3L29.5 10.5M27.9 11.1L29.2 11.7"
-        stroke={brand}
-        strokeWidth="1"
-        strokeLinecap="round"
-        fill="none"
+        d="M27.3 9.6C28.4 9 29.5 9.1 29.9 9.7C29.6 10.1 29.6 10.7 29.9 11.2C29.4 11.6 28.7 12 28.2 11.6C27.6 11.1 27 10.3 27.3 9.6Z"
+        fill={brand}
       />
+      <ellipse cx="27" cy="13.2" rx="1.1" ry="0.9" fill={brand} />
       {/* head */}
-      <circle cx="23.8" cy="10.2" r="2.7" fill={brand} />
-      <circle cx="22.3" cy="7.7" r="2.05" fill={brand} />
-      <circle cx="25.6" cy="7.5" r="2.05" fill={brand} />
-      <circle cx="22.3" cy="7.4" r="1" fill="#ffffff" />
-      <circle cx="25.6" cy="7.2" r="1" fill="#ffffff" />
-      <circle cx="22.7" cy="7.5" r="0.55" fill={ink} />
-      <circle cx="26" cy="7.3" r="0.55" fill={ink} />
+      <circle cx="23.6" cy="10.4" r="2.9" fill={brand} />
+      <circle cx="22.3" cy="7.9" r="1.9" fill={brand} />
+      <circle cx="25.4" cy="7.9" r="1.9" fill={brand} />
+      <circle cx="22.3" cy="7.75" r="0.88" fill="#ffffff" />
+      <circle cx="25.4" cy="7.75" r="0.88" fill="#ffffff" />
+      <circle cx="22.3" cy="7.8" r="0.66" fill={ink} />
+      <circle cx="25.4" cy="7.8" r="0.66" fill={ink} />
     </svg>
   );
 }
