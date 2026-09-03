@@ -23,12 +23,11 @@ import {
   LINK_HINTS,
   LINK_LABELS,
   LINK_OPTION_LABELS,
-  roleLabel,
-  roleShort,
   SET_TYPE_LABELS,
   SET_TYPE_SHORT,
   SET_TYPE_VALUES,
   type SetType,
+  slotLabel,
 } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import type { FullTemplate } from "@/lib/queries/templates";
@@ -74,7 +73,7 @@ type Slot = Day["exercises"][number];
 type PlannedSet = Slot["sets"][number];
 
 const slotTitle = (s: Slot | undefined) =>
-  s ? (s.exercise?.name ?? roleLabel(s.muscle, s.role)) : null;
+  s ? (s.exercise?.name ?? slotLabel(s.muscle)) : null;
 
 let tmpSeq = 0;
 const tmpId = () => `tmp_${Date.now().toString(36)}_${tmpSeq++}`;
@@ -387,7 +386,7 @@ export function TemplateEditor({
   // --- slots ----------------------------------------------------------
   function addSlot(
     dayId: string,
-    input: { exerciseId?: string; muscle?: string; role?: string },
+    input: { exerciseId?: string; muscle?: string },
     exercise?: PickerExercise,
   ) {
     rememberExercise(exercise);
@@ -404,7 +403,6 @@ export function TemplateEditor({
       exerciseId: input.exerciseId ?? null,
       exercise: picked ? (picked as unknown as Slot["exercise"]) : null,
       muscle: (input.muscle ?? picked?.muscle ?? null) as Slot["muscle"],
-      role: (input.role ?? null) as Slot["role"],
       order: day?.exercises.length ?? 0,
       targetReps: "8-12",
       linkToNext: null,
@@ -457,7 +455,6 @@ export function TemplateEditor({
           } as Slot["exercise"])
         : null,
       muscle: s.muscle ?? picked?.muscle ?? null,
-      role: s.role as Slot["role"],
     }));
     persistFor(slotId, (id) => updateTemplateExercise({ id, exerciseId }));
   }
@@ -620,7 +617,7 @@ export function TemplateEditor({
   );
 }
 
-type SlotInput = { exerciseId?: string; muscle?: string; role?: string };
+type SlotInput = { exerciseId?: string; muscle?: string };
 
 function DayCard({
   day,
@@ -938,11 +935,12 @@ function SlotRow({
         />
         <div className="min-w-[8rem] flex-1">
           <p className="text-sm font-medium">
-            {te.exercise?.name ?? roleLabel(te.muscle, te.role)}
+            {te.exercise?.name ?? slotLabel(te.muscle)}
           </p>
           <div className="mt-0.5 flex flex-wrap gap-1.5">
-            {te.muscle ? <Badge variant="secondary">{te.muscle}</Badge> : null}
-            {te.role ? <Badge variant="ghost">{roleShort(te.role)}</Badge> : null}
+            {te.exercise && te.muscle ? (
+              <Badge variant="secondary">{te.muscle}</Badge>
+            ) : null}
             {te.exercise ? (
               <Badge variant="ghost">{EQUIPMENT_LABELS[te.exercise.equipment]}</Badge>
             ) : null}

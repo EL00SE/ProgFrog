@@ -6,8 +6,8 @@ import {
   isWorkingSet,
   localDateKey,
   MUSCLE_GROUPS,
-  roleLabel,
   type SetLike,
+  slotLabel,
   startOfWeek,
   type WeightUnit,
   weeklyStreak,
@@ -85,9 +85,7 @@ export function summarizeWorkout(w: NonNullable<WorkoutWithSets>, number?: numbe
     setCount: allSets.filter(isWorkingSet).length,
     volume: workoutVolume(allSets),
     exerciseNames: [
-      ...new Set(
-        w.exercises.map((we) => we.exercise?.name ?? roleLabel(we.muscle, we.role)),
-      ),
+      ...new Set(w.exercises.map((we) => we.exercise?.name ?? slotLabel(we.muscle))),
     ],
   };
 }

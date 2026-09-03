@@ -8,15 +8,12 @@ import { getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import {
   type ExerciseLink,
-  type ExerciseRole,
   isWorkingSet,
   LINK_VALUES,
-  ROLE_VALUES,
   SET_TYPE_VALUES,
   type SetType,
 } from "@/lib/training";
 
-const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
 const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
 const setTypeEnum = z.enum([...SET_TYPE_VALUES] as [string, ...string[]]);
 
@@ -85,7 +82,7 @@ const addWorkoutSchema = z.object({
   templateId: z.string().min(1),
   /** an existing day, or null to create a fresh day from the workout */
   dayId: z.string().min(1).nullable(),
-  /** "exercise" keeps the specific movements; "slot" keeps only muscle + role */
+  /** "exercise" keeps the specific movements; "slot" keeps only the muscle group */
   mode: z.enum(["exercise", "slot"]),
 });
 
@@ -146,7 +143,6 @@ export async function addWorkoutToTemplate(input: z.infer<typeof addWorkoutSchem
           templateDayId: dayId!,
           exerciseId: keepExercise ? we.exerciseId : null,
           muscle: we.muscle ?? we.exercise?.muscle ?? "Other",
-          role: keepExercise ? we.role : ((we.role ?? "ACCESSORY") as ExerciseRole),
           order: start + i,
           targetReps: repTarget(working.map((s) => s.reps)),
           linkToNext: we.linkToNext,
@@ -318,7 +314,6 @@ export async function duplicateTemplateDay(dayId: string) {
         create: source.exercises.map((te) => ({
           exerciseId: te.exerciseId,
           muscle: te.muscle,
-          role: te.role,
           order: te.order,
           targetReps: te.targetReps,
           linkToNext: te.linkToNext,
@@ -346,23 +341,21 @@ const addExerciseSchema = z
     dayId: z.string().min(1),
     exerciseId: z.string().min(1).optional(),
     muscle: z.string().trim().max(40).optional(),
-    role: roleEnum.optional(),
     targetSets: z.number().int().min(1).max(20).optional(),
     targetReps: z.string().trim().max(20).optional(),
     linkToNext: linkEnum.nullable().optional(),
   })
-  .refine((d) => d.exerciseId || (d.muscle && d.role), {
-    message: "Pick an exercise, or a muscle and role",
+  .refine((d) => d.exerciseId || d.muscle, {
+    message: "Pick an exercise or a muscle group",
   });
 
-/** Add a slot to a template day — either a specific exercise or an open muscle/role. */
+/** Add a slot to a template day — either a specific exercise or an open muscle group. */
 export async function addTemplateExercise(input: z.infer<typeof addExerciseSchema>) {
   const userId = await getCurrentUserId();
   const data = addExerciseSchema.parse(input);
   await assertOwnDay(userId, data.dayId);
 
   let muscle = data.muscle ?? null;
-  const role = (data.role ?? null) as ExerciseRole | null;
 
   if (data.exerciseId) {
     const exercise = await prisma.exercise.findFirst({
@@ -382,7 +375,6 @@ export async function addTemplateExercise(input: z.infer<typeof addExerciseSchem
       templateDayId: data.dayId,
       exerciseId: data.exerciseId ?? null,
       muscle,
-      role,
       order: count,
       targetReps: data.targetReps || "8-12",
       linkToNext: (data.linkToNext ?? null) as ExerciseLink | null,
@@ -403,7 +395,6 @@ const updateExerciseSchema = z.object({
   id: z.string().min(1),
   exerciseId: z.string().min(1).nullable().optional(),
   muscle: z.string().trim().max(40).nullable().optional(),
-  role: roleEnum.nullable().optional(),
   targetReps: z.string().trim().max(20).nullable().optional(),
   linkToNext: linkEnum.nullable().optional(),
 });
@@ -417,7 +408,6 @@ export async function updateTemplateExercise(
 
   // Setting a specific exercise adopts its muscle when the slot has none.
   let muscle = data.muscle;
-  const role = data.role as ExerciseRole | null | undefined;
   if (data.exerciseId) {
     const exercise = await prisma.exercise.findFirst({
       where: { id: data.exerciseId, OR: [{ ownerId: null }, { ownerId: userId }] },
@@ -436,7 +426,6 @@ export async function updateTemplateExercise(
     data: {
       exerciseId: data.exerciseId === undefined ? undefined : data.exerciseId,
       muscle: muscle === undefined ? undefined : muscle,
-      role: role === undefined ? undefined : role,
       targetReps: data.targetReps === undefined ? undefined : data.targetReps,
       linkToNext:
         data.linkToNext === undefined

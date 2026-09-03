@@ -4,11 +4,9 @@ import { prisma } from "@/lib/prisma";
 import {
   best1RM,
   convertWeight,
-  type ExerciseRole,
   localDateKey,
+  MUSCLE_GROUPS,
   personalRecords,
-  roleLabel,
-  ROLE_ORDER,
   type SessionPoint,
   type SetLike,
   topSet,
@@ -42,46 +40,32 @@ export async function getTrackedExercises(userId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// By role slot
+// By muscle group
 // ---------------------------------------------------------------------------
 
-export type TrackedRole = { key: string; muscle: string; role: string; label: string };
+export type TrackedMuscle = { key: string; muscle: string; label: string };
 
-/** Encode/decode a `"<muscle>:<ROLE>"` key for the URL. */
-export function roleKey(muscle: string, role: string) {
-  return `${muscle}:${role}`;
-}
-export function parseRoleKey(key: string): { muscle: string; role: string } | null {
-  const i = key.lastIndexOf(":");
-  if (i < 1) return null;
-  return { muscle: key.slice(0, i), role: key.slice(i + 1) };
-}
-
-/** (muscle, role) slots the user has logged sets against. */
-export async function getTrackedRoles(userId: string): Promise<TrackedRole[]> {
+/** Muscle groups the user has logged sets against (any exercise or slot). */
+export async function getTrackedMuscles(userId: string): Promise<TrackedMuscle[]> {
   const rows = await prisma.workoutExercise.findMany({
     where: {
       muscle: { not: null },
-      role: { not: null },
       workout: { userId, finishedAt: { not: null } },
       sets: { some: {} },
     },
-    select: { muscle: true, role: true },
-    distinct: ["muscle", "role"],
+    select: { muscle: true },
+    distinct: ["muscle"],
   });
 
+  const order = (m: string) => {
+    const i = (MUSCLE_GROUPS as readonly string[]).indexOf(m);
+    return i === -1 ? MUSCLE_GROUPS.length : i;
+  };
   return rows
-    .filter((r): r is { muscle: string; role: ExerciseRole } => !!r.muscle && !!r.role)
-    .map((r) => ({
-      key: roleKey(r.muscle, r.role),
-      muscle: r.muscle,
-      role: r.role,
-      label: roleLabel(r.muscle, r.role),
-    }))
+    .filter((r): r is { muscle: string } => !!r.muscle)
+    .map((r) => ({ key: r.muscle, muscle: r.muscle, label: r.muscle }))
     .sort(
-      (a, b) =>
-        a.muscle.localeCompare(b.muscle) ||
-        (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
+      (a, b) => order(a.muscle) - order(b.muscle) || a.muscle.localeCompare(b.muscle),
     );
 }
 
@@ -97,7 +81,7 @@ export type ProgressSeries = {
   prs: ReturnType<typeof personalRecords>;
 };
 
-type WhereEntry = { exerciseId: string } | { muscle: string; role: ExerciseRole };
+type WhereEntry = { exerciseId: string } | { muscle: string };
 
 async function buildSeries(
   userId: string,
@@ -156,20 +140,13 @@ export async function getExerciseProgress(
   return buildSeries(userId, exercise.id, exercise.name, { exerciseId }, displayUnit);
 }
 
-export async function getRoleProgress(
+export async function getMuscleProgress(
   userId: string,
   muscle: string,
-  role: string,
   displayUnit: WeightUnit,
 ): Promise<ProgressSeries | null> {
-  if (!(role in ROLE_ORDER)) return null;
-  return buildSeries(
-    userId,
-    roleKey(muscle, role),
-    roleLabel(muscle, role),
-    { muscle, role: role as ExerciseRole },
-    displayUnit,
-  );
+  if (!muscle) return null;
+  return buildSeries(userId, muscle, muscle, { muscle }, displayUnit);
 }
 
 function round(n: number) {

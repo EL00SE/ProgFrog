@@ -160,7 +160,7 @@ export function AddToTemplateDialog({
                 <span>
                   <span className="font-medium">An open slot</span>
                   <span className="text-muted-foreground block text-xs">
-                    just the muscle + role — pick the exercise each session
+                    just the muscle group — pick the exercise each session
                   </span>
                 </span>
               </Label>

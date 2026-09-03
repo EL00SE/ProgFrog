@@ -139,15 +139,6 @@ enum SetType {
   FAILURE
 }
 
-/// The role a movement plays in a session: heavy compound, supporting compound,
-/// single-joint isolation, or low-stakes accessory volume.
-enum ExerciseRole {
-  MAIN
-  SECONDARY
-  ISOLATION
-  ACCESSORY
-}
-
 /// How an exercise connects to the next one in the same session.
 /// `SUPERSET`: alternate between the two with no rest, then rest once at the end.
 /// `DROP_SET`: go straight into the next (usually lighter) exercise with no rest.
@@ -201,8 +192,8 @@ model Workout {
   @@index([userId, date])
 }
 
-/// One entry in a workout. It is a "slot": it always carries a `muscle` + `role`
-/// snapshot, and optionally names the specific `exercise` that filled it.
+/// One entry in a workout. It is a "slot": it always carries a `muscle` snapshot,
+/// and optionally names the specific `exercise` that filled it.
 model WorkoutExercise {
   id            String        @id @default(cuid())
   /// Idempotency key from the offline outbox — lets a replayed create no-op.
@@ -212,7 +203,6 @@ model WorkoutExercise {
   exerciseId    String?
   exercise      Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
   muscle        String?
-  role          ExerciseRole?
   targetSets    Int?
   targetReps    String?
   order         Int           @default(0)
@@ -270,8 +260,8 @@ model TemplateDay {
   @@index([templateId])
 }
 
-/// A planned slot in a template day: a `muscle` + `role` to hit, optionally with
-/// a default `exercise` pencilled in. Its `sets` spell out the planned set list.
+/// A planned slot in a template day: a `muscle` to hit, optionally with a default
+/// `exercise` pencilled in. Its `sets` spell out the planned set list.
 model TemplateExercise {
   id            String        @id @default(cuid())
   templateDayId String
@@ -279,7 +269,6 @@ model TemplateExercise {
   exerciseId    String?
   exercise      Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
   muscle        String?
-  role          ExerciseRole?
   order         Int           @default(0)
   /// Default rep target for every set that doesn't override it ("8-12").
   targetReps    String?

@@ -12,9 +12,10 @@ with offline logging so a dead signal in the weights room never costs you a set.
   order you trained them (`#41` in the corner), not titled per day.
 - **Templates** — define your split once (Push / Pull / Legs, etc.) and start a
   session pre-filled from any day, or build a template day straight from a
-  workout you already logged (as exact exercises or as open muscle/role slots).
+  workout you already logged (as the exact exercises, or as open muscle-group
+  slots you fill in each session).
 - **Progress** — estimated 1-rep max, heaviest set and total volume per exercise
-  or muscle role, plus bodyweight tracking. The dashboard also grids working sets
+  or per muscle group, plus bodyweight tracking. The dashboard also grids working sets
   per muscle group across the last twelve training weeks, with a true weekly rate
   (sets ÷ the elapsed block, so a 6- or 8-day split still reads right) and a
   per-session figure.

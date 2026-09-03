@@ -8,9 +8,7 @@ import { getCurrentUser, getCurrentUserId } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import {
   type ExerciseLink,
-  type ExerciseRole,
   LINK_VALUES,
-  ROLE_VALUES,
   SET_TYPE_VALUES,
   type SetType,
 } from "@/lib/training";
@@ -26,7 +24,6 @@ const EQUIPMENT = [
   "OTHER",
 ] as const;
 
-const roleEnum = z.enum(ROLE_VALUES as [string, ...string[]]);
 const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
 const setTypeEnum = z.enum([...SET_TYPE_VALUES] as [string, ...string[]]);
 
@@ -171,7 +168,6 @@ export async function startWorkoutFromTemplateDay(templateDayId: string) {
         create: day.exercises.map((te, i) => ({
           exerciseId: te.exerciseId,
           muscle: te.muscle ?? te.exercise?.muscle ?? null,
-          role: te.role,
           targetSets: te.sets.length || null,
           targetReps: te.targetReps,
           order: i,
@@ -339,11 +335,10 @@ export async function addExerciseToWorkout(input: z.infer<typeof addExerciseSche
 const addSlotSchema = z.object({
   workoutId: z.string().min(1),
   muscle: z.string().trim().max(40),
-  role: roleEnum,
   clientId: z.string().min(1).max(60).optional(),
 });
 
-/** Add an exercise-less slot (muscle + role) to fill in later. */
+/** Add an exercise-less slot (a muscle group) to fill in later. */
 export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
   const userId = await getCurrentUserId();
   const data = addSlotSchema.parse(input);
@@ -365,7 +360,6 @@ export async function addSlotToWorkout(input: z.infer<typeof addSlotSchema>) {
     data: {
       workoutId: data.workoutId,
       muscle: data.muscle,
-      role: data.role as ExerciseRole,
       order: count,
       clientId: data.clientId,
     },

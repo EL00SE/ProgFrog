@@ -9,8 +9,8 @@ import {
   formatHeight,
   formatWeight,
   isWorkingSet,
-  roleLabel,
   type SetLike,
+  slotLabel,
   weeklyStreak,
 } from "@/lib/training";
 
@@ -113,7 +113,7 @@ export async function getChatContext(userId: string): Promise<string> {
     lines.push(`\n### ${date}${wk.name ? ` — ${wk.name}` : ""}`);
     if (wk.notes) lines.push(`_${wk.notes}_`);
     for (const we of wk.exercises) {
-      const name = we.exercise?.name ?? roleLabel(we.muscle, we.role);
+      const name = we.exercise?.name ?? slotLabel(we.muscle);
       const sets = we.sets
         .filter((s) => s.reps > 0 || (s.seconds ?? 0) > 0)
         .map((s) => {
@@ -166,7 +166,7 @@ export async function getChatContext(userId: string): Promise<string> {
       lines.push(`\n### ${t.name}${t.description ? ` — ${t.description}` : ""}`);
       for (const d of t.days) {
         const slots = d.exercises
-          .map((e) => e.exercise?.name ?? roleLabel(e.muscle, e.role))
+          .map((e) => e.exercise?.name ?? slotLabel(e.muscle))
           .join(", ");
         lines.push(`- ${d.name}: ${slots || "(empty)"}`);
       }

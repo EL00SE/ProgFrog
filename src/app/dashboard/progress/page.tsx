@@ -6,10 +6,9 @@ import { cn } from "@/lib/utils";
 import { getBodyData } from "@/lib/queries/body";
 import {
   getExerciseProgress,
-  getRoleProgress,
+  getMuscleProgress,
   getTrackedExercises,
-  getTrackedRoles,
-  parseRoleKey,
+  getTrackedMuscles,
 } from "@/lib/queries/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
@@ -26,7 +25,7 @@ export default async function ProgressPage({
 
   const sp = await searchParams;
   const section = sp.section === "body" ? "body" : "lifts";
-  const view = sp.view === "role" ? "role" : "exercise";
+  const view = sp.view === "muscle" ? "muscle" : "exercise";
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,17 +84,17 @@ async function LiftsSection({
 }: {
   userId: string;
   unit: "KG" | "LB";
-  view: "role" | "exercise";
+  view: "muscle" | "exercise";
   sp: Record<string, string | string[] | undefined>;
 }) {
-  const [exercises, roles] = await Promise.all([
+  const [exercises, muscles] = await Promise.all([
     getTrackedExercises(userId),
-    getTrackedRoles(userId),
+    getTrackedMuscles(userId),
   ]);
 
   const options =
-    view === "role"
-      ? roles.map((r) => ({ value: r.key, label: r.label }))
+    view === "muscle"
+      ? muscles.map((m) => ({ value: m.key, label: m.label }))
       : exercises.map((e) => ({ value: e.id, label: e.name }));
 
   const selectedKey =
@@ -103,17 +102,13 @@ async function LiftsSection({
 
   let series = null;
   if (selectedKey) {
-    if (view === "role") {
-      const parsed = parseRoleKey(selectedKey);
-      series = parsed
-        ? await getRoleProgress(userId, parsed.muscle, parsed.role, unit)
-        : null;
-    } else {
-      series = await getExerciseProgress(userId, selectedKey, unit);
-    }
+    series =
+      view === "muscle"
+        ? await getMuscleProgress(userId, selectedKey, unit)
+        : await getExerciseProgress(userId, selectedKey, unit);
   }
 
-  if (exercises.length === 0 && roles.length === 0) {
+  if (exercises.length === 0 && muscles.length === 0) {
     return (
       <Card>
         <CardContent className="text-muted-foreground py-10 text-center text-sm">
@@ -126,7 +121,7 @@ async function LiftsSection({
   return (
     <ProgressView
       view={view}
-      hasRoles={roles.length > 0}
+      hasMuscles={muscles.length > 0}
       hasExercises={exercises.length > 0}
       options={options}
       selectedKey={selectedKey}

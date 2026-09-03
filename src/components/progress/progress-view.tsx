@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 
 type Option = { value: string; label: string };
-type View = "exercise" | "role";
+type View = "exercise" | "muscle";
 
 const chartConfig = {
   best1RM: { label: "Est. 1-rep max", color: "var(--chart-1)" },
@@ -41,14 +41,14 @@ const chartConfig = {
 
 export function ProgressView({
   view,
-  hasRoles,
+  hasMuscles,
   hasExercises,
   options,
   selectedKey,
   series,
 }: {
   view: View;
-  hasRoles: boolean;
+  hasMuscles: boolean;
   hasExercises: boolean;
   options: Option[];
   selectedKey: string | null;
@@ -74,12 +74,12 @@ export function ProgressView({
 
   return (
     <div className="flex flex-col gap-4">
-      {hasRoles && hasExercises && (
+      {hasMuscles && hasExercises && (
         <div className="bg-muted/60 inline-flex w-fit gap-1 rounded-lg p-1">
           {(
             [
-              ["role", "By role"],
               ["exercise", "By exercise"],
+              ["muscle", "By muscle"],
             ] as const
           ).map(([v, label]) => (
             <Button
@@ -97,7 +97,9 @@ export function ProgressView({
       <Select value={selectedKey ?? undefined} onValueChange={select}>
         <SelectTrigger className="w-full sm:w-72">
           <SelectValue
-            placeholder={view === "role" ? "Choose a slot" : "Choose an exercise"}
+            placeholder={
+              view === "muscle" ? "Choose a muscle group" : "Choose an exercise"
+            }
           />
         </SelectTrigger>
         <SelectContent>
@@ -130,8 +132,8 @@ export function ProgressView({
             <CardHeader>
               <CardTitle>{series.title}</CardTitle>
               <CardDescription>
-                {view === "role"
-                  ? "Follows whatever exercise filled this role, over "
+                {view === "muscle"
+                  ? "Every set logged for this muscle group, over "
                   : "Estimated 1-rep max and heaviest-set weight over "}
                 {data.length} {data.length === 1 ? "workout" : "workouts"}
               </CardDescription>

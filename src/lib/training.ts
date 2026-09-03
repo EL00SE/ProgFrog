@@ -346,36 +346,10 @@ export function linkedGroupLabel(group: Linkable[]): string {
     : "Circuit";
 }
 
-export const ROLE_LABELS = {
-  MAIN: "Main lift",
-  SECONDARY: "Secondary lift",
-  ISOLATION: "Isolation",
-  ACCESSORY: "Accessory",
-} as const;
-
-export type ExerciseRole = keyof typeof ROLE_LABELS;
-
-export const ROLE_VALUES = Object.keys(ROLE_LABELS) as ExerciseRole[];
-
-export const ROLE_ORDER: Record<string, number> = {
-  MAIN: 0,
-  SECONDARY: 1,
-  ISOLATION: 2,
-  ACCESSORY: 3,
-};
-
-/** Short badge form, e.g. "Main" / "Secondary" / "Isolation" / "Accessory". */
-export function roleShort(role?: string | null): string {
-  if (!role) return "";
-  return ROLE_LABELS[role as ExerciseRole]?.replace(/ lift$/, "") ?? role;
-}
-
 /**
- * Human label for a movement slot: `"Chest · Main lift"`, or just the role, or
- * just the muscle, or `"Exercise"` when neither is known.
+ * Human label for an open (exercise-less) slot — just the muscle group it hits,
+ * or `"Exercise"` when even that is unknown.
  */
-export function roleLabel(muscle?: string | null, role?: string | null): string {
-  const r = role ? (ROLE_LABELS[role as ExerciseRole] ?? role) : "";
-  if (muscle && r) return `${muscle} · ${r}`;
-  return muscle || r || "Exercise";
+export function slotLabel(muscle?: string | null): string {
+  return muscle || "Exercise";
 }

@@ -56,7 +56,7 @@ type Job =
   | {
       kind: "addSlot";
       tempId: string;
-      args: { workoutId: string; muscle: string; role: string };
+      args: { workoutId: string; muscle: string };
     }
   | { kind: "finishWorkout"; args: { workoutId: string } };
 
@@ -191,7 +191,6 @@ async function run(job: QueuedJob): Promise<void> {
     case "addSlot": {
       const created = await addSlotToWorkout({
         ...job.args,
-        role: job.args.role as never,
         clientId: job.tempId,
       });
       finishCreate(job.tempId, created.id);
@@ -306,7 +305,7 @@ export const outbox = {
   ) => enqueue({ kind: "createExercise", tempId, args }),
   addExercise: (tempId: string, args: { workoutId: string; exerciseId: string }) =>
     enqueue({ kind: "addExercise", tempId, args }),
-  addSlot: (tempId: string, args: { workoutId: string; muscle: string; role: string }) =>
+  addSlot: (tempId: string, args: { workoutId: string; muscle: string }) =>
     enqueue({ kind: "addSlot", tempId, args }),
   assignExercise: (args: { workoutExerciseId: string; exerciseId: string }) =>
     enqueue({ kind: "assignExercise", args }),

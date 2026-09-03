@@ -32,12 +32,11 @@ import {
   LINK_OPTION_LABELS,
   LINK_TRIGGER_LABELS,
   linkedGroupLabel,
-  roleLabel,
-  roleShort,
   SET_TYPE_CODE,
   SET_TYPE_LABELS,
   SET_TYPE_VALUES,
   type SetType,
+  slotLabel,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import { deleteWorkout, finishWorkout } from "@/lib/actions/workouts";
@@ -167,7 +166,6 @@ function optimisticWE(
   opts: {
     exercise?: PickerExercise;
     muscle?: string | null;
-    role?: string | null;
   },
 ): WE {
   const ex = opts.exercise;
@@ -184,7 +182,6 @@ function optimisticWE(
         }
       : null,
     muscle: opts.muscle ?? ex?.muscle ?? null,
-    role: opts.role ?? null,
     targetSets: null,
     targetReps: null,
     order,
@@ -283,14 +280,14 @@ export function WorkoutLogger({
     outbox.addExercise(tempId, { workoutId: workout.id, exerciseId });
   }
 
-  function handleAddSlot(slot: { muscle: string; role: string }) {
+  function handleAddSlot(slot: { muscle: string }) {
     const tempId = tmpWeId();
     setExercises((list) => [
       ...list,
-      optimisticWE(tempId, list.length, { muscle: slot.muscle, role: slot.role }),
+      optimisticWE(tempId, list.length, { muscle: slot.muscle }),
     ]);
     setNewWeId(tempId);
-    outbox.addSlot(tempId, { workoutId: workout.id, ...slot });
+    outbox.addSlot(tempId, { workoutId: workout.id, muscle: slot.muscle });
   }
 
   function handleAssign(weId: string, exerciseId: string, exercise?: PickerExercise) {
@@ -786,13 +783,12 @@ function ExerciseCard({
                   {index + 1}
                 </span>
                 <span className="font-heading font-medium">
-                  {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
+                  {we.exercise?.name ?? slotLabel(we.muscle)}
                 </span>
               </div>
             )}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
               {we.muscle ? <Badge variant="secondary">{we.muscle}</Badge> : null}
-              {we.role ? <Badge variant="ghost">{roleShort(we.role)}</Badge> : null}
               {timed ? <Badge variant="ghost">Timed</Badge> : null}
               {we.linkToNext ? (
                 <Badge variant="outline">{LINK_LABELS[we.linkToNext]} → next</Badge>
@@ -902,7 +898,7 @@ function ExerciseCard({
                 <Timer className="size-3.5" /> Rest
               </Button>
 
-              {(we.muscle || we.role) && (
+              {we.muscle && (
                 <ExercisePickerDialog
                   catalog={catalog}
                   history={prev}

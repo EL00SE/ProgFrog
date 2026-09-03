@@ -14,7 +14,7 @@ import {
   linkedGroupLabel,
   parseTargetSeconds,
   personalRecords,
-  roleLabel,
+  slotLabel,
   startOfWeek,
   topSet,
   weeklyStreak,
@@ -240,14 +240,10 @@ describe("linkedGroupLabel", () => {
   });
 });
 
-describe("roleLabel", () => {
-  it("combines muscle and role", () => {
-    expect(roleLabel("Chest", "MAIN")).toBe("Chest · Main lift");
-  });
-
-  it("falls back to whichever part is known", () => {
-    expect(roleLabel("Back", null)).toBe("Back");
-    expect(roleLabel(null, "ISOLATION")).toBe("Isolation");
-    expect(roleLabel(null, null)).toBe("Exercise");
+describe("slotLabel", () => {
+  it("is the muscle group, or a fallback", () => {
+    expect(slotLabel("Chest")).toBe("Chest");
+    expect(slotLabel(null)).toBe("Exercise");
+    expect(slotLabel(undefined)).toBe("Exercise");
   });
 });

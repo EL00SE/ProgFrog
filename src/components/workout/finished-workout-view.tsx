@@ -14,9 +14,8 @@ import {
   LINK_HINTS,
   LINK_LABELS,
   linkedGroupLabel,
-  roleLabel,
-  roleShort,
   SET_TYPE_SHORT,
+  slotLabel,
   topSet,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
@@ -304,10 +303,7 @@ function ExerciseBlock({
     <Card className={cn(!inGroup && "h-full", inGroup && "shadow-none")}>
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
-          {we.exercise?.name ?? roleLabel(we.muscle, we.role)}
-          {we.exercise && we.role ? (
-            <Badge variant="ghost">{roleShort(we.role)}</Badge>
-          ) : null}
+          {we.exercise?.name ?? slotLabel(we.muscle)}
           <Badge variant="secondary">
             {EQUIPMENT_LABELS[we.equipment ?? we.exercise?.equipment ?? "OTHER"]}
           </Badge>
