@@ -18,7 +18,8 @@ const linkEnum = z.enum([...LINK_VALUES] as [string, ...string[]]);
 const setTypeEnum = z.enum([...SET_TYPE_VALUES] as [string, ...string[]]);
 
 function revalidateTemplateViews(templateId?: string) {
-  revalidatePath("/dashboard/templates");
+  // "layout" so the Templates pane (rendered by dashboard/layout.tsx) refreshes.
+  revalidatePath("/dashboard", "layout");
   if (templateId) revalidatePath(`/dashboard/templates/${templateId}`);
 }
 
@@ -29,7 +30,7 @@ function revalidateTemplateViews(templateId?: string) {
  * fresh for when the user navigates back to it.
  */
 function revalidateTemplateList() {
-  revalidatePath("/dashboard/templates");
+  revalidatePath("/dashboard", "layout");
 }
 
 async function assertOwnTemplate(userId: string, templateId: string) {

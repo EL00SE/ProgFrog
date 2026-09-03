@@ -135,8 +135,8 @@
   }
 }
 
-/* A blanket safety net: individual components (page-transition, the carousel
- * swipe) already check prefers-reduced-motion themselves for JS-driven
+/* A blanket safety net: individual components (the tab pager's swipe/slide)
+ * already check prefers-reduced-motion themselves for JS-driven
  * animation, but the shadcn/radix animate-in/out utilities (dialogs, sheets,
  * selects, accordions, …) don't. This catches those without touching every
  * component. */

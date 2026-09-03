@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { prisma } from "@/lib/prisma";
 import {
   convertWeight,
@@ -47,12 +49,20 @@ export function getActiveWorkout(userId: string) {
   });
 }
 
-export async function getWorkoutHistory(userId: string) {
-  const workouts = await prisma.workout.findMany({
+/**
+ * Every finished workout for the user, newest first. Cached per request so the
+ * dashboard shell (history pane + scoreboard + muscle grid) scans once.
+ */
+const finishedWorkouts = cache((userId: string) =>
+  prisma.workout.findMany({
     where: { userId, finishedAt: { not: null } },
     orderBy: { date: "desc" },
     include: workoutInclude,
-  });
+  }),
+);
+
+export async function getWorkoutHistory(userId: string) {
+  const workouts = await finishedWorkouts(userId);
   // Chronological session number — the oldest finished workout is #1.
   return workouts.map((w, i) => summarizeWorkout(w, workouts.length - i));
 }
@@ -108,11 +118,7 @@ export async function getDashboardData(
   displayUnit: WeightUnit,
   recentCount = 6,
 ) {
-  const workouts = await prisma.workout.findMany({
-    where: { userId, finishedAt: { not: null } },
-    orderBy: { date: "desc" },
-    include: workoutInclude,
-  });
+  const workouts = await finishedWorkouts(userId);
 
   const thisWeekStart = startOfWeek(new Date()).getTime();
   const lastWeekStart = startOfWeek(

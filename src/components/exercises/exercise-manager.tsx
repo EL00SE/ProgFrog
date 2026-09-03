@@ -33,13 +33,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type GlobalExercise = {
+export type GlobalExercise = {
   id: string;
   name: string;
   equipment: string;
   muscle: string | null;
 };
-type CustomExercise = GlobalExercise & { isArchived: boolean };
+export type CustomExercise = GlobalExercise & { isArchived: boolean };
 
 function byMuscleThenName(a: GlobalExercise, b: GlobalExercise) {
   return (a.muscle ?? "~").localeCompare(b.muscle ?? "~") || a.name.localeCompare(b.name);

@@ -23,7 +23,7 @@ with offline logging so a dead signal in the weights room never costs you a set.
   queue in a localStorage outbox and replay on reconnect, with idempotency keys
   so a crash-replay never double-writes.
 - **Installs like an app** — standalone display, maskable icons, iOS launch
-  screens, app shortcuts, and haptics; carousel swipe between tabs. Reduced-
+  screens, app shortcuts, and haptics; Instagram-style swipe between tabs. Reduced-
   motion and increased-contrast preferences are honoured, targets meet WCAG 2.2.
 - **Training assistant** (optional) — an in-app chat that can see your recent
   training; only shown when `ANTHROPIC_API_KEY` is set.
@@ -138,14 +138,13 @@ src/
     api/auth/[...nextauth]/route.ts  Auth.js route handlers
     api/chat/route.ts                training-assistant streaming endpoint
     dashboard/                       the app (protected — proxy + DAL)
-      page.tsx                       scoreboard: streak, all-time, this week
-      workouts/                      history, [id] logger, new (start picker)
-      templates/                     split editor
-      progress/                      1RM / volume / bodyweight charts
-      exercises/  settings/
+      layout.tsx                     fetches every tab's data, renders the pager
+      page.tsx  workouts/  progress/  templates/  exercises/   tab routes (panes)
+      workouts/[id] (logger)  workouts/new  templates/[id] (editor)  settings/
     offline/                         service-worker fallback screen
     sign-in/  layout.tsx  manifest.ts  globals.css
   components/
+    dashboard/                       tab pager + the five tab panes
     workout/                         logger, wheel field, rest timer, pickers
     ui/                              shadcn components (yours to edit)
     pwa/                             service-worker registration, install button
@@ -178,14 +177,18 @@ public/
   the datasource URL lives in `prisma.config.ts`, not `schema.prisma`.
 - **Env vars** are validated on import of `src/env.ts` (also imported by
   `next.config.ts`). Set `SKIP_ENV_VALIDATION=1` to bypass (Docker build, some CI).
+- **Tab pager** — `dashboard/layout.tsx` fetches every tab's data once and
+  renders the five tabs as always-mounted panes inside
+  `src/components/dashboard/tab-pager.tsx`. A swipe drags the strip 1:1 and
+  snaps with `history.pushState` — no navigation, no re-render, scroll position
+  kept per tab. Detail routes (`/workouts/[id]`, editors) fall through to
+  `{children}`. Mutations call `revalidatePath("/dashboard", "layout")`.
 - **Optimistic client state** — the logger, template editor, exercise manager
   and body view own their list state and apply edits locally first, then fire a
-  server action; server actions revalidate the narrowest path. See
-  `src/lib/offline-queue.ts` for the offline outbox.
-- **Mobile & a11y** — carousel tab-swipe (`src/components/page-transition.tsx`)
-  tracks the finger 1:1 with velocity; a global reduced-motion / contrast
-  safety net lives in `globals.css`; response security headers (CSP, HSTS,
-  frame-ancestors) are set in `next.config.ts`.
+  server action. See `src/lib/offline-queue.ts` for the offline outbox.
+- **Mobile & a11y** — a global reduced-motion / contrast safety net lives in
+  `globals.css`; response security headers (CSP, HSTS, frame-ancestors) are set
+  in `next.config.ts`.
 
 ## Deploy
 

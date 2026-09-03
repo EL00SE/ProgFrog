@@ -29,11 +29,9 @@ const createSchema = exerciseSchema.extend({
 });
 
 function revalidateExerciseViews() {
-  revalidatePath("/dashboard/exercises");
-  revalidatePath("/dashboard/progress");
-  // logger and template editors read the catalog
-  revalidatePath("/dashboard/workouts", "layout");
-  revalidatePath("/dashboard/templates", "layout");
+  // The Exercises + Progress panes and the logger / template editors all read
+  // the catalog — one layout-level bust covers the dashboard shell.
+  revalidatePath("/dashboard", "layout");
 }
 
 export type ExerciseActionResult =
