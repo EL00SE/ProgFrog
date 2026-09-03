@@ -73,10 +73,15 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     swipeEnter = 0;
     lastPath = pathname;
 
+    // A swipeable tab keeps a persistent compositor layer so the 1:1 drag stays
+    // on the GPU; every other page drops the hint once idle so it doesn't
+    // suppress the browser's scroll anchoring (which made the logger jump).
+    const idleWillChange = canSwipe ? "transform" : "";
+
     if (dir === "none" || prefersReducedMotion()) {
       el.style.transform = "";
       el.style.opacity = "";
-      el.style.willChange = "";
+      el.style.willChange = idleWillChange;
       return;
     }
 
@@ -96,12 +101,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       el.style.transform = "translate3d(0,0,0)";
       el.style.opacity = "1";
     });
-    // Once settled, drop every inline compositing hint. A lingering
-    // `will-change`/`transform` on this full-page wrapper keeps it on its own
-    // layer and suppresses the browser's scroll anchoring — which then lets the
-    // page jump when content below the fold grows (e.g. logging a set).
+    // Once settled, drop the inline transform/opacity and (on non-swipe pages)
+    // the compositing hint too, so it stops suppressing scroll anchoring.
     const clear = window.setTimeout(() => {
-      el.style.willChange = "";
+      el.style.willChange = idleWillChange;
       el.style.transition = "";
       el.style.transform = "";
       el.style.opacity = "";
@@ -110,7 +113,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       cancelAnimationFrame(raf);
       window.clearTimeout(clear);
     };
-  }, [pathname]);
+  }, [pathname, canSwipe]);
 
   // Warm the swipe neighbours so releasing the gesture lands instantly.
   React.useEffect(() => {
@@ -165,7 +168,6 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
           return;
         }
         horizontal = true;
-        el.style.willChange = "transform";
       }
 
       e.preventDefault(); // we own the gesture now; stop the page scrolling
@@ -199,11 +201,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         swipeEnter = goNext ? 1 : -1;
         el.style.transform = `translate3d(${goNext ? -w : w}px,0,0)`;
         router.push(SWIPE_TABS[swipeIndex + (goNext ? 1 : -1)]);
-        // the incoming page's enter effect manages will-change from here
       } else {
+        // snap back; keep will-change (this is a swipe page) for the next drag
         el.style.transform = "translate3d(0,0,0)";
         window.setTimeout(() => {
-          el.style.willChange = "";
           el.style.transition = "";
           el.style.transform = "";
         }, SETTLE_MS + 60);
@@ -223,7 +224,12 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   }, [canSwipe, swipeIndex, router]);
 
   return (
-    <div key={pathname} ref={ref} className="min-h-full">
+    <div
+      key={pathname}
+      ref={ref}
+      className="min-h-full"
+      style={canSwipe ? { willChange: "transform" } : undefined}
+    >
       {children}
     </div>
   );
