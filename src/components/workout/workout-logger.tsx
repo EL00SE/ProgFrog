@@ -957,29 +957,29 @@ function ExerciseCard({
               );
             });
           })()}
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
-                <Plus className="size-3.5" /> Add set
+          <div className="mt-1 flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
+              <Plus className="size-3.5" /> Add set
+            </Button>
+            {!timed ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onAddDropSet}
+                disabled={disabled}
+                title="Adds a set marked as a drop — lower the weight and rep out again with no rest"
+              >
+                <ChevronsDown className="size-3.5" /> Add drop set
               </Button>
-              {!timed ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onAddDropSet}
-                  disabled={disabled}
-                  title="Adds a set marked as a drop — lower the weight and rep out again with no rest"
-                >
-                  <ChevronsDown className="size-3.5" /> Add drop set
-                </Button>
-              ) : null}
-            </div>
-            {!timed && best > 0 && (
-              <span className="text-muted-foreground text-xs">
-                Est. 1-rep max {formatWeight(best, unit)}
-              </span>
-            )}
+            ) : null}
           </div>
+          {!timed && (
+            // Fixed height even when empty, so filling in a set doesn't reflow
+            // the card and nudge the page.
+            <span className="text-muted-foreground h-4 text-xs leading-4">
+              {best > 0 ? `Est. 1-rep max ${formatWeight(best, unit)}` : ""}
+            </span>
+          )}
         </CardContent>
       )}
     </Card>

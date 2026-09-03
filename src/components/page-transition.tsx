@@ -76,6 +76,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     if (dir === "none" || prefersReducedMotion()) {
       el.style.transform = "";
       el.style.opacity = "";
+      el.style.willChange = "";
       return;
     }
 
@@ -86,6 +87,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         ? PUSH_OFFSET
         : -PUSH_OFFSET;
 
+    el.style.willChange = "transform, opacity";
     el.style.transition = "none";
     el.style.transform = `translate3d(${startX}px,0,0)`;
     el.style.opacity = fromSwipe ? "1" : "0"; // a swipe is a solid slide, no fade
@@ -94,7 +96,20 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       el.style.transform = "translate3d(0,0,0)";
       el.style.opacity = "1";
     });
-    return () => cancelAnimationFrame(raf);
+    // Once settled, drop every inline compositing hint. A lingering
+    // `will-change`/`transform` on this full-page wrapper keeps it on its own
+    // layer and suppresses the browser's scroll anchoring — which then lets the
+    // page jump when content below the fold grows (e.g. logging a set).
+    const clear = window.setTimeout(() => {
+      el.style.willChange = "";
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.opacity = "";
+    }, SETTLE_MS + 60);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(clear);
+    };
   }, [pathname]);
 
   // Warm the swipe neighbours so releasing the gesture lands instantly.
@@ -150,6 +165,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
           return;
         }
         horizontal = true;
+        el.style.willChange = "transform";
       }
 
       e.preventDefault(); // we own the gesture now; stop the page scrolling
@@ -183,8 +199,14 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
         swipeEnter = goNext ? 1 : -1;
         el.style.transform = `translate3d(${goNext ? -w : w}px,0,0)`;
         router.push(SWIPE_TABS[swipeIndex + (goNext ? 1 : -1)]);
+        // the incoming page's enter effect manages will-change from here
       } else {
         el.style.transform = "translate3d(0,0,0)";
+        window.setTimeout(() => {
+          el.style.willChange = "";
+          el.style.transition = "";
+          el.style.transform = "";
+        }, SETTLE_MS + 60);
       }
     };
 
@@ -201,7 +223,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   }, [canSwipe, swipeIndex, router]);
 
   return (
-    <div key={pathname} ref={ref} className="min-h-full will-change-transform">
+    <div key={pathname} ref={ref} className="min-h-full">
       {children}
     </div>
   );
