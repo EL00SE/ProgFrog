@@ -28,6 +28,27 @@ with offline logging so a dead signal in the weights room never costs you a set.
 - **Training assistant** (optional) — an in-app chat that can see your recent
   training; only shown when `ANTHROPIC_API_KEY` is set.
 
+## Design
+
+- **Mark** — a frog caught mid-leap, climbing up and to the right over a fading
+  trail of hops: progress as a series of jumps. One colour, built from a handful
+  of primitives so it holds from a 512 px icon down to a 16 px favicon. Lives in
+  `src/components/logo.tsx` (`FrogMark`) and `src/app/icon.svg`.
+- **Palette** — "golden hour": a warm amber primary on a paper-cream ground,
+  warm espresso ink and sand-tinted neutrals instead of black-on-white. Dark
+  mode keeps the same warmth over a near-black brown. Tokens are oklch custom
+  properties in `src/app/globals.css` (`:root` / `.dark`), exposed to Tailwind
+  through `@theme inline`.
+- **PWA icons** — `pnpm gen:icons` rasterises `src/app/icon.svg` and the padded
+  `public/icon-maskable.svg` (sharp) into `public/icon-{192,512}.png`,
+  `public/icon-maskable-512.png` and `src/app/apple-icon.png`. Re-run after any
+  edit to the source SVGs.
+- **Launch screens** — `pnpm gen:splash` renders the mark centred on the brand
+  ground at 11 iPhone resolutions into `public/splash/`; the matching
+  `apple-touch-startup-image` list is in `src/app/layout.tsx`. `theme_color` /
+  `background_color` (split light/dark) live in `src/app/manifest.ts` and
+  `viewport.themeColor`.
+
 ## Stack
 
 | Concern     | Choice                                                                                    |
@@ -142,7 +163,7 @@ src/
       page.tsx  workouts/  progress/  templates/  exercises/   tab routes (panes)
       workouts/[id] (logger)  workouts/new  templates/[id] (editor)  settings/
     offline/                         service-worker fallback screen
-    sign-in/  layout.tsx  manifest.ts  globals.css
+    sign-in/  layout.tsx  manifest.ts  globals.css  icon.svg  apple-icon.png
   components/
     dashboard/                       tab pager + the five tab panes
     workout/                         logger, wheel field, rest timer, pickers
@@ -165,7 +186,8 @@ prisma/
 prisma.config.ts                     Prisma 7 config (schema path, datasource URL)
 public/
   sw.js                              service worker (precache + offline nav)
-  splash/                            generated iOS launch screens
+  icon-*.png  icon-maskable.svg      PWA icons (regen: pnpm gen:icons)
+  splash/                            generated iOS launch screens (pnpm gen:splash)
 ```
 
 ## Notes on the modern bits
