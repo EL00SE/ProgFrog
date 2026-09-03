@@ -76,6 +76,7 @@ const CATALOG: CatalogEntry[] = [
   x("Trap Bar Shrug", "Traps", "BARBELL"),
   x("Cable Shrug", "Traps", "CABLE"),
   x("Farmer's Carry", "Traps", "DUMBBELL", true),
+  x("Incline Y-Raise", "Traps", "DUMBBELL"), // lower traps
 
   // Shoulders
   x("Overhead Press", "Shoulders", "BARBELL"),
@@ -95,7 +96,6 @@ const CATALOG: CatalogEntry[] = [
   x("Upright Row", "Shoulders", "BARBELL"),
   x("Cable Upright Row", "Shoulders", "CABLE"),
   x("Landmine Press", "Shoulders", "BARBELL"),
-  x("Incline Y-Raise", "Shoulders", "DUMBBELL"),
 
   // Biceps
   x("Barbell Curl", "Biceps", "BARBELL"),
