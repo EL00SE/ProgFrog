@@ -10,13 +10,13 @@ const SETTLE_MS = 300;
 const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const PUSH_OFFSET = 16;
 
-// Only block a drag from things that own the horizontal axis themselves — text
-// fields, sliders, the Select trigger, charts, and anything that scrolls
-// sideways. Links, buttons and cards stay swipeable: the tap/drag threshold
-// already tells a tap from a drag, so most of a list page can start a swipe.
+// Only block a drag from things that genuinely own the horizontal axis — text
+// fields, sliders, the Select trigger, and anything that scrolls sideways.
+// Links, buttons, cards and charts stay swipeable (a chart tooltip is tap-
+// triggered, not drag-triggered), so almost the whole pane can start a swipe.
 const NO_SWIPE =
   "input,textarea,[role=slider],[role=combobox],[data-slot=select-trigger]," +
-  "[data-noswipe],.recharts-wrapper,.overflow-x-auto,[data-scroll-x]";
+  "[data-noswipe],.overflow-x-auto,[data-scroll-x]";
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
@@ -157,7 +157,10 @@ export function TabPager({
         }
         horizontal = true;
       }
+      // Capture phase — take the gesture before a chart / card sees it, so a
+      // swipe over a chart doesn't also drive its tooltip.
       e.preventDefault();
+      e.stopPropagation();
 
       const now = e.timeStamp;
       const dt = now - lastT;
@@ -202,16 +205,16 @@ export function TabPager({
       }
     };
 
-    el.addEventListener("touchstart", onStart, { passive: true });
-    el.addEventListener("touchmove", onMove, { passive: false });
-    el.addEventListener("touchend", onEnd, { passive: true });
-    el.addEventListener("touchcancel", onEnd, { passive: true });
+    el.addEventListener("touchstart", onStart, { passive: true, capture: true });
+    el.addEventListener("touchmove", onMove, { passive: false, capture: true });
+    el.addEventListener("touchend", onEnd, { passive: true, capture: true });
+    el.addEventListener("touchcancel", onEnd, { passive: true, capture: true });
     el.addEventListener("click", onClickCapture, true);
     return () => {
-      el.removeEventListener("touchstart", onStart);
-      el.removeEventListener("touchmove", onMove);
-      el.removeEventListener("touchend", onEnd);
-      el.removeEventListener("touchcancel", onEnd);
+      el.removeEventListener("touchstart", onStart, true);
+      el.removeEventListener("touchmove", onMove, true);
+      el.removeEventListener("touchend", onEnd, true);
+      el.removeEventListener("touchcancel", onEnd, true);
       el.removeEventListener("click", onClickCapture, true);
     };
   }, [isDetail, isMobile, index, tabs, titles]);
