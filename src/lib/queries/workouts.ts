@@ -176,7 +176,7 @@ export type DashboardStats = Awaited<ReturnType<typeof getDashboardData>>["stats
 // ---------------------------------------------------------------------------
 
 /** How many recent training weeks the dashboard grid shows. */
-const MUSCLE_WEEKS_SHOWN = 8;
+const MUSCLE_WEEKS_SHOWN = 12;
 
 export type WeeklyMuscleSets = {
   /** `yyyy-mm-dd` of each shown week's Sunday, oldest → newest. */
