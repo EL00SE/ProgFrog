@@ -1,7 +1,7 @@
 /* ProgFrog service worker — minimal, hand-rolled.
  * Goals: make the app installable and degrade gracefully offline.
  * Bump CACHE_VERSION whenever this file's caching rules change. */
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const STATIC_CACHE = `progfrog-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `progfrog-pages-${CACHE_VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -64,11 +64,16 @@ self.addEventListener("message", (event) => {
   }
 });
 
-function isImmutableAsset(url) {
-  return (
-    url.pathname.startsWith("/_next/static/") ||
-    /\.(?:js|css|woff2?|png|svg|jpg|jpeg|webp|ico)$/.test(url.pathname)
-  );
+// Content-hashed by the build — the bytes behind a given URL never change.
+function isHashedBuildAsset(url) {
+  return url.pathname.startsWith("/_next/static/");
+}
+
+// Static assets served from a stable path (brand icons, launch screens,
+// favicon, fonts). The bytes CAN change on a redeploy, so these must not be
+// pinned forever the way hashed assets are.
+function isStaticAsset(url) {
+  return /\.(?:js|css|woff2?|png|svg|jpg|jpeg|webp|ico)$/.test(url.pathname);
 }
 
 self.addEventListener("fetch", (event) => {
@@ -110,8 +115,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Immutable build assets: cache-first, fill the cache lazily.
-  if (isImmutableAsset(url)) {
+  // Content-hashed build assets: cache-first, fill the cache lazily — the URL
+  // changes whenever the bytes do, so a stale hit is impossible.
+  if (isHashedBuildAsset(url)) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
@@ -122,6 +128,29 @@ self.addEventListener("fetch", (event) => {
             return response;
           }),
       ),
+    );
+    return;
+  }
+
+  // Other static assets (icons, launch screens, favicon): stale-while-
+  // revalidate. Serve the cached copy immediately, then refresh it in the
+  // background so a redeployed icon or splash lands on the next load without a
+  // CACHE_VERSION bump.
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(STATIC_CACHE);
+        const cached = await cache.match(request);
+        const network = fetch(request).then((response) => {
+          if (response && response.ok) cache.put(request, response.clone());
+          return response;
+        });
+        if (cached) {
+          event.waitUntil(network.catch(() => {}));
+          return cached;
+        }
+        return network;
+      })(),
     );
   }
 });
