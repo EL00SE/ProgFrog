@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import {
   convertWeight,
   isWorkingSet,
+  localDateKey,
+  MUSCLE_GROUPS,
   roleLabel,
   type SetLike,
   startOfWeek,
@@ -17,9 +19,9 @@ const workoutInclude = {
   exercises: {
     orderBy: { order: "asc" },
     include: {
-      // Only the fields the logger / history / summary actually read.
+      // Only the fields the logger / history / summary / stats actually read.
       exercise: {
-        select: { id: true, name: true, equipment: true, isTimed: true },
+        select: { id: true, name: true, equipment: true, isTimed: true, muscle: true },
       },
       sets: { orderBy: { order: "asc" } },
     },
@@ -156,6 +158,7 @@ export async function getDashboardData(
     recent: workouts
       .slice(0, recentCount)
       .map((w, i) => summarizeWorkout(w, workouts.length - i)),
+    weeklyMuscleSets: weeklyMuscleSets(workouts),
   };
 }
 
@@ -167,3 +170,92 @@ function add(acc: Totals, e: Totals) {
 }
 
 export type DashboardStats = Awaited<ReturnType<typeof getDashboardData>>["stats"];
+
+// ---------------------------------------------------------------------------
+// Weekly working-set count per muscle group
+// ---------------------------------------------------------------------------
+
+/** How many recent training weeks the dashboard grid shows. */
+const MUSCLE_WEEKS_SHOWN = 8;
+
+export type WeeklyMuscleSets = {
+  /** `yyyy-mm-dd` of each shown week's Sunday, oldest → newest. */
+  weeks: string[];
+  /** One row per muscle group trained in the window, most-trained first. */
+  rows: { muscle: string; counts: number[]; avg: number }[];
+  /** All muscle groups combined, per week. */
+  totals: { counts: number[]; avg: number };
+};
+
+type GridWorkout = {
+  date: Date;
+  exercises: {
+    muscle: string | null;
+    exercise: { muscle: string | null } | null;
+    sets: { type: string; reps: number; seconds: number | null }[];
+  }[];
+};
+
+const mean1 = (xs: number[]) =>
+  xs.length ? Math.round((xs.reduce((s, x) => s + x, 0) / xs.length) * 10) / 10 : 0;
+
+/**
+ * Working sets (warm-ups excluded) each muscle group received, bucketed into the
+ * last {@link MUSCLE_WEEKS_SHOWN} weeks that contain a workout. `avg` is the mean
+ * across those weeks — "sets per muscle group per week".
+ */
+export function weeklyMuscleSets(
+  workouts: GridWorkout[],
+  weeksShown = MUSCLE_WEEKS_SHOWN,
+): WeeklyMuscleSets {
+  // weekStart(ms) → muscle → count
+  const byWeek = new Map<number, Map<string, number>>();
+  for (const w of workouts) {
+    const wk = startOfWeek(w.date).getTime();
+    const perMuscle = byWeek.get(wk) ?? new Map<string, number>();
+    byWeek.set(wk, perMuscle);
+    for (const we of w.exercises) {
+      const muscle = we.muscle ?? we.exercise?.muscle ?? "Other";
+      let n = 0;
+      for (const s of we.sets) {
+        if (s.type === "WARMUP") continue;
+        if (s.reps > 0 || (s.seconds ?? 0) > 0) n += 1;
+      }
+      if (n > 0) perMuscle.set(muscle, (perMuscle.get(muscle) ?? 0) + n);
+    }
+  }
+
+  const weekMs = [...byWeek.keys()]
+    .sort((a, b) => b - a)
+    .slice(0, weeksShown)
+    .sort((a, b) => a - b);
+
+  const totalByMuscle = new Map<string, number>();
+  for (const ms of weekMs) {
+    for (const [muscle, n] of byWeek.get(ms)!) {
+      totalByMuscle.set(muscle, (totalByMuscle.get(muscle) ?? 0) + n);
+    }
+  }
+  const order = (m: string) => {
+    const i = (MUSCLE_GROUPS as readonly string[]).indexOf(m);
+    return i === -1 ? MUSCLE_GROUPS.length : i;
+  };
+  const muscles = [...totalByMuscle.keys()].sort(
+    (a, b) =>
+      (totalByMuscle.get(b) ?? 0) - (totalByMuscle.get(a) ?? 0) || order(a) - order(b),
+  );
+
+  const rows = muscles.map((muscle) => {
+    const counts = weekMs.map((ms) => byWeek.get(ms)!.get(muscle) ?? 0);
+    return { muscle, counts, avg: mean1(counts) };
+  });
+  const totalsCounts = weekMs.map((ms) =>
+    [...byWeek.get(ms)!.values()].reduce((s, x) => s + x, 0),
+  );
+
+  return {
+    weeks: weekMs.map((ms) => localDateKey(new Date(ms))),
+    rows,
+    totals: { counts: totalsCounts, avg: mean1(totalsCounts) },
+  };
+}

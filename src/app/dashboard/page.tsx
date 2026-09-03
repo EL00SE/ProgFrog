@@ -8,6 +8,7 @@ import {
   type DashboardStats,
   getActiveWorkout,
   getDashboardData,
+  type WeeklyMuscleSets,
 } from "@/lib/queries/workouts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const [active, { stats, recent }] = await Promise.all([
+  const [active, { stats, recent, weeklyMuscleSets }] = await Promise.all([
     getActiveWorkout(user.id),
     getDashboardData(user.id, user.weightUnit),
   ]);
@@ -64,6 +65,9 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-4 md:gap-3">
           <StreakCard stats={stats} />
           <Scoreboard stats={stats} unit={unit} />
+          {weeklyMuscleSets.weeks.length > 0 && (
+            <MuscleWeekGrid data={weeklyMuscleSets} />
+          )}
         </div>
       ) : (
         <Card className="from-primary/10 bg-gradient-to-b to-transparent">
@@ -223,6 +227,88 @@ function Scoreboard({ stats, unit }: { stats: DashboardStats; unit: "KG" | "LB" 
         </div>
       </section>
     </div>
+  );
+}
+
+function MuscleWeekGrid({ data }: { data: WeeklyMuscleSets }) {
+  const labels = data.weeks.map((iso) =>
+    formatDate(iso, { month: "short", day: "numeric" }),
+  );
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+          Sets per muscle · by week
+        </h2>
+        <span className="text-muted-foreground text-[0.7rem]">
+          working sets · avg = per week
+        </span>
+      </div>
+      <Card size="sm">
+        <CardContent className="overflow-x-auto px-0">
+          <table className="w-full border-collapse text-sm tabular-nums">
+            <thead>
+              <tr className="text-muted-foreground text-[0.7rem]">
+                <th className="bg-card sticky left-0 z-10 px-3 py-1.5 text-left font-medium">
+                  Muscle
+                </th>
+                {labels.map((label, i) => (
+                  <th
+                    key={data.weeks[i]}
+                    className="px-2.5 py-1.5 text-right font-medium whitespace-nowrap"
+                  >
+                    {label}
+                  </th>
+                ))}
+                <th className="text-foreground px-3 py-1.5 text-right font-semibold">
+                  avg
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row) => (
+                <tr key={row.muscle} className="border-border/50 border-t">
+                  <th className="bg-card sticky left-0 z-10 px-3 py-1.5 text-left font-medium whitespace-nowrap">
+                    {row.muscle}
+                  </th>
+                  {row.counts.map((c, i) => (
+                    <td
+                      key={data.weeks[i]}
+                      className={
+                        "px-2.5 py-1.5 text-right " +
+                        (c === 0 ? "text-muted-foreground/40" : "")
+                      }
+                    >
+                      {c === 0 ? "·" : c}
+                    </td>
+                  ))}
+                  <td className="text-primary px-3 py-1.5 text-right font-semibold">
+                    {row.avg}
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-border border-t-2">
+                <th className="bg-card sticky left-0 z-10 px-3 py-1.5 text-left font-semibold whitespace-nowrap">
+                  All sets
+                </th>
+                {data.totals.counts.map((c, i) => (
+                  <td
+                    key={data.weeks[i]}
+                    className="text-muted-foreground px-2.5 py-1.5 text-right font-medium"
+                  >
+                    {c}
+                  </td>
+                ))}
+                <td className="text-primary px-3 py-1.5 text-right font-semibold">
+                  {data.totals.avg}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
