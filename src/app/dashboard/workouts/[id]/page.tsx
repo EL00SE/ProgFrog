@@ -38,7 +38,6 @@ export default async function WorkoutPage({
     return (
       <FinishedWorkoutView
         workout={workout}
-        title={title}
         number={number}
         dateLabel={dateLabel}
         templates={templates.map((t) => ({

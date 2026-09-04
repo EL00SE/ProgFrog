@@ -163,13 +163,11 @@ type WE = FullWorkout["exercises"][number];
 
 export function FinishedWorkoutView({
   workout,
-  title,
   number,
   dateLabel,
   templates,
 }: {
   workout: FullWorkout;
-  title: string;
   number: number | null;
   dateLabel: string;
   templates: { id: string; name: string; days: { id: string; name: string }[] }[];
@@ -186,14 +184,36 @@ export function FinishedWorkoutView({
         <div className="space-y-1">
           <BackLink href="/dashboard/workouts">Workouts</BackLink>
           <p className="text-muted-foreground text-sm">{dateLabel}</p>
-          <h1 className="flex items-baseline gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-            {title}
+          <div className="flex items-baseline gap-2">
+            <Input
+              key={workout.id}
+              defaultValue={workout.name ?? ""}
+              maxLength={80}
+              placeholder="Workout"
+              aria-label="Workout name"
+              disabled={pending}
+              className="h-auto min-w-0 flex-1 border-0 bg-transparent px-0 text-xl font-bold tracking-tight shadow-none focus-visible:ring-0 sm:text-2xl dark:bg-transparent"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next === (workout.name ?? "").trim()) return;
+                startTransition(async () => {
+                  try {
+                    await updateWorkout({ workoutId: workout.id, name: next || null });
+                  } catch {
+                    toast.error("Couldn't save the name");
+                  }
+                });
+              }}
+            />
             {number ? (
-              <span className="text-muted-foreground text-sm font-medium tabular-nums">
+              <span className="text-muted-foreground shrink-0 text-sm font-medium tabular-nums">
                 #{number}
               </span>
             ) : null}
-          </h1>
+          </div>
           <p className="text-muted-foreground text-sm">
             {workout.exercises.length} exercises · {working.length} sets ·{" "}
             {formatWeight(volume, unit)} lifted
