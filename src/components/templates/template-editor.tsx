@@ -201,6 +201,9 @@ export function TemplateEditor({
   // `adding` gates the create buttons for ~1s while a new row is persisted, so
   // there is never a second create racing an unsaved id. Edits never block.
   const [adding, startAdding] = React.useTransition();
+  // Synchronous latch so a double-tap on "Start workout" can't fire two starts
+  // before `adding` flips — that would create (and orphan) a second workout.
+  const startingWorkout = React.useRef(false);
   const [saving, startSaving] = React.useTransition();
   const [savedAt, setSavedAt] = React.useState<number | null>(null);
   // Days start collapsed so a multi-day split is scannable on open.
@@ -579,7 +582,14 @@ export function TemplateEditor({
             onRename={(name) => renameDay(day.id, name)}
             onMoveUp={() => moveDay(day.id, -1)}
             onMoveDown={() => moveDay(day.id, 1)}
-            onStartWorkout={() => startAdding(() => startWorkoutFromTemplateDay(day.id))}
+            onStartWorkout={() => {
+              if (adding || startingWorkout.current) return;
+              startingWorkout.current = true;
+              window.setTimeout(() => {
+                startingWorkout.current = false;
+              }, 2500);
+              startAdding(() => startWorkoutFromTemplateDay(day.id));
+            }}
             onDuplicate={() => duplicateDay(day.id)}
             onRemove={() => removeDay(day.id)}
             onAddSlot={(input, ex) => addSlot(day.id, input, ex)}

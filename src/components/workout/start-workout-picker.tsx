@@ -24,11 +24,22 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
   const [pending, startTransition] = React.useTransition();
   const [openId, setOpenId] = React.useState<string | null>(templates[0]?.id ?? null);
   const [name, setName] = React.useState("");
+  // A fast double-tap can fire two starts before `pending` flips and disables
+  // the button — creating two workouts, one of which lingers as a phantom.
+  const starting = React.useRef(false);
+  function guardStart(run: () => void) {
+    if (starting.current || pending) return;
+    starting.current = true;
+    window.setTimeout(() => {
+      starting.current = false;
+    }, 2500);
+    run();
+  }
 
   function startFreestyle() {
     const fd = new FormData();
     if (name.trim()) fd.set("name", name.trim());
-    startTransition(() => createWorkout(fd));
+    guardStart(() => startTransition(() => createWorkout(fd)));
   }
 
   return (
@@ -95,7 +106,9 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
                         type="button"
                         disabled={pending || d.slots === 0}
                         onClick={() =>
-                          startTransition(() => startWorkoutFromTemplateDay(d.id))
+                          guardStart(() =>
+                            startTransition(() => startWorkoutFromTemplateDay(d.id)),
+                          )
                         }
                         className="hover:bg-accent flex items-center justify-between gap-2 rounded-lg border p-3 text-left text-sm transition-colors disabled:opacity-50"
                       >

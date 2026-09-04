@@ -41,6 +41,17 @@ function revalidateWorkoutViews(workoutId: string) {
   revalidatePath("/dashboard/progress");
 }
 
+/** True once any set in the workout has a real rep count or hold time logged. */
+async function hasLoggedSets(workoutId: string): Promise<boolean> {
+  const n = await prisma.setEntry.count({
+    where: {
+      workoutExercise: { workoutId },
+      OR: [{ reps: { gt: 0 } }, { seconds: { gt: 0 } }],
+    },
+  });
+  return n > 0;
+}
+
 /**
  * Only one workout is open at a time. If the user already has an unfinished
  * workout: return its id when it has real logged data (callers resume it instead
@@ -54,16 +65,27 @@ async function claimOpenWorkout(userId: string): Promise<string | null> {
   });
   if (!open) return null;
 
-  const logged = await prisma.setEntry.count({
-    where: {
-      workoutExercise: { workoutId: open.id },
-      OR: [{ reps: { gt: 0 } }, { seconds: { gt: 0 } }],
-    },
-  });
-  if (logged > 0) return open.id;
+  if (await hasLoggedSets(open.id)) return open.id;
 
   await prisma.workout.delete({ where: { id: open.id } });
   return null;
+}
+
+/**
+ * Sweep any *other* open workouts that have nothing logged in them. A rapid
+ * double-tap on "start" can create two, and once you finish one the other
+ * lingers as a phantom "workout in progress" on the dashboard.
+ */
+async function sweepEmptyOpenWorkouts(userId: string) {
+  const open = await prisma.workout.findMany({
+    where: { userId, finishedAt: null },
+    select: { id: true },
+  });
+  for (const w of open) {
+    if (!(await hasLoggedSets(w.id))) {
+      await prisma.workout.delete({ where: { id: w.id } });
+    }
+  }
 }
 
 /** Confirms the workout exists and belongs to the signed-in user. */
@@ -211,6 +233,8 @@ export async function syncFinishWorkout(workoutId: string) {
     where: { id: workoutId, endedAt: null },
     data: { endedAt: now },
   });
+
+  await sweepEmptyOpenWorkouts(userId);
 
   revalidateWorkoutViews(workoutId);
   return { ok: true as const };
