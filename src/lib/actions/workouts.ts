@@ -245,13 +245,21 @@ export async function finishWorkout(workoutId: string) {
   redirect("/dashboard");
 }
 
-/** Move a finished workout back to in-progress so it can be edited. */
+/**
+ * Move a finished workout back to in-progress so it can be edited. Only
+ * `finishedAt` is cleared — `endedAt` stays as the session's real end time.
+ * It used to be cleared too, "so the next finish can re-stamp it", but that
+ * next finish is almost always just this reopen: syncFinishWorkout() stamps
+ * `endedAt` for any workout where it's null, so nulling it here meant fixing
+ * a rep count on an old session silently rewrote its end time to whenever
+ * you happened to hit "Finish" again.
+ */
 export async function reopenWorkout(workoutId: string) {
   const userId = await getCurrentUserId();
   await assertOwnWorkout(userId, workoutId);
   await prisma.workout.update({
     where: { id: workoutId },
-    data: { finishedAt: null, endedAt: null },
+    data: { finishedAt: null },
   });
   revalidateWorkoutViews(workoutId);
   redirect(`/dashboard/workouts/${workoutId}`);
