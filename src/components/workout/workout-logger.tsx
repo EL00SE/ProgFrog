@@ -78,16 +78,17 @@ type WE = FullWorkout["exercises"][number];
 type SetEntry = WE["sets"][number];
 type PrevMap = Record<string, ExercisePrev>;
 
-/** "Aug 21 — 60×8, 60×8, 55×6 kg" from a previous session. */
+/** "Aug 21 — 60kg×8, 60kg×8, 55kg×6" from a previous session (weight × reps). */
 function formatPrev(prev: ExercisePrev, unit: "KG" | "LB", timed: boolean): string {
+  const u = unit.toLowerCase();
   const shown = prev.sets.slice(0, 5);
   const parts = shown.map((s) =>
-    timed ? `${s.seconds ?? 0}s` : `${s.weight}×${s.reps}`,
+    timed ? `${s.seconds ?? 0}s` : `${s.weight}${u}×${s.reps}`,
   );
   const more = prev.sets.length - shown.length;
   return `${formatDate(prev.date, { month: "short", day: "numeric" })} — ${parts.join(
     ", ",
-  )}${more > 0 ? ` +${more}` : ""}${timed ? "" : ` ${unit.toLowerCase()}`}`;
+  )}${more > 0 ? ` +${more}` : ""}`;
 }
 
 /** One-line recap for a collapsed, finished exercise: "4 sets · 560 kg". */
@@ -103,17 +104,15 @@ function collapsedSummary(we: WE, unit: "KG" | "LB"): string {
   return `${n} ${n === 1 ? "set" : "sets"} · ${formatWeight(vol, unit)}`;
 }
 
-function loggedSetCount(we: WE) {
-  const timed = we.exercise?.isTimed ?? false;
-  return we.sets.filter(
-    (s) => isWorkingSet(s) && (timed ? (s.seconds ?? 0) > 0 : s.reps > 0),
-  ).length;
-}
-
+/**
+ * An exercise only counts as done once **every** set it has — warm-ups
+ * included — carries a rep count (or a hold time, if timed). An exercise with
+ * no sets, or any blank set, stays open.
+ */
 function isExerciseDone(we: WE) {
-  if (!we.exercise) return false;
-  const done = loggedSetCount(we);
-  return we.targetSets ? done >= we.targetSets : done > 0;
+  if (!we.exercise || we.sets.length === 0) return false;
+  const timed = we.exercise.isTimed ?? false;
+  return we.sets.every((s) => (timed ? (s.seconds ?? 0) > 0 : s.reps > 0));
 }
 
 // --- offline snapshot + optimistic set seeding ----------------------------
