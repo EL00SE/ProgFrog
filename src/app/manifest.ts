@@ -30,7 +30,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "ProgFrog",
     short_name: "ProgFrog",
     description: "Track your workouts, sets, and progress.",
-    id: "/",
+    // Chrome / Windows key an installed PWA (and its cached icon, its Start-Menu
+    // entry, its IconCache.db row) off `id`. After the rebrand, existing installs
+    // kept the old icon through uninstall+reinstall because the identity — and so
+    // every cache — was unchanged. Bumping `id` makes it a fresh app: new folder,
+    // new icon fetch, no collision. Bump again (v3, …) if this ever recurs.
+    id: "/?v=2",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
