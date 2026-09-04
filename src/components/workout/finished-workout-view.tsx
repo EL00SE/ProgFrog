@@ -173,6 +173,7 @@ export function FinishedWorkoutView({
   templates: { id: string; name: string; days: { id: string; name: string }[] }[];
 }) {
   const [pending, startTransition] = React.useTransition();
+  const nameInputRef = React.useRef<HTMLInputElement>(null);
   const unit = workout.unit;
 
   const working = workout.exercises.flatMap((e) => e.sets.filter(isWorkingSet));
@@ -186,6 +187,7 @@ export function FinishedWorkoutView({
           <p className="text-muted-foreground text-sm">{dateLabel}</p>
           <div className="flex items-baseline gap-2">
             <Input
+              ref={nameInputRef}
               key={workout.id}
               defaultValue={workout.name ?? ""}
               maxLength={80}
@@ -213,6 +215,24 @@ export function FinishedWorkoutView({
                 #{number}
               </span>
             ) : null}
+            {/* The name field above has no border of its own — nothing marks
+                it as editable until you tap it. This pencil, matching the one
+                on session times below, is the tell; tapping it also focuses
+                and selects the field so typing over it works immediately. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={pending}
+              aria-label="Edit workout name"
+              className="text-muted-foreground shrink-0"
+              onClick={() => {
+                nameInputRef.current?.focus();
+                nameInputRef.current?.select();
+              }}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
           </div>
           <p className="text-muted-foreground text-sm">
             {workout.exercises.length} exercises · {working.length} sets ·{" "}
