@@ -6,9 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { CreateTemplateForm } from "@/components/templates/create-template-form";
+import {
+  TemplateFromWorkoutDialog,
+  type PastWorkout,
+} from "@/components/templates/template-from-workout-dialog";
 import { Pane } from "@/components/dashboard/pane";
 
-export function TemplatesPane({ templates }: { templates: TemplateListItem[] }) {
+export function TemplatesPane({
+  templates,
+  pastWorkouts,
+}: {
+  templates: TemplateListItem[];
+  pastWorkouts: PastWorkout[];
+}) {
   return (
     <Pane>
       <div className="flex flex-col gap-6">
@@ -17,7 +27,17 @@ export function TemplatesPane({ templates }: { templates: TemplateListItem[] }) 
           description="Define your split once. Use it as a reference, or start a workout pre-filled from any day."
         />
 
-        <CreateTemplateForm />
+        <div className="flex flex-wrap items-center gap-2">
+          <CreateTemplateForm />
+          <TemplateFromWorkoutDialog
+            workouts={pastWorkouts}
+            templates={templates.map((t) => ({
+              id: t.id,
+              name: t.name,
+              days: t.days.map((d) => ({ id: d.id, name: d.name })),
+            }))}
+          />
+        </div>
 
         {templates.length === 0 ? (
           <Card>

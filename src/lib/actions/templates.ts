@@ -78,14 +78,20 @@ async function assertOwnTemplateSet(userId: string, id: string) {
 
 // --- add a finished workout to a template -------------------------------
 
-const addWorkoutSchema = z.object({
-  workoutId: z.string().min(1),
-  templateId: z.string().min(1),
-  /** an existing day, or null to create a fresh day from the workout */
-  dayId: z.string().min(1).nullable(),
-  /** "exercise" keeps the specific movements; "slot" keeps only the muscle group */
-  mode: z.enum(["exercise", "slot"]),
-});
+const addWorkoutSchema = z
+  .object({
+    workoutId: z.string().min(1),
+    /** an existing template, or null to spin up a new one named `newTemplateName` */
+    templateId: z.string().min(1).nullable(),
+    newTemplateName: z.string().trim().min(1).max(80).optional(),
+    /** an existing day, or null to create a fresh day from the workout */
+    dayId: z.string().min(1).nullable(),
+    /** "exercise" keeps the specific movements; "slot" keeps only the muscle group */
+    mode: z.enum(["exercise", "slot"]),
+  })
+  .refine((d) => d.templateId || d.newTemplateName, {
+    message: "Pick a template or name a new one",
+  });
 
 /** "3 × 8" style rep target derived from a workout exercise's working sets. */
 function repTarget(reps: number[]): string | null {
@@ -99,7 +105,6 @@ function repTarget(reps: number[]): string | null {
 export async function addWorkoutToTemplate(input: z.infer<typeof addWorkoutSchema>) {
   const userId = await getCurrentUserId();
   const data = addWorkoutSchema.parse(input);
-  await assertOwnTemplate(userId, data.templateId);
 
   const workout = await prisma.workout.findFirst({
     where: { id: data.workoutId, userId },
@@ -112,16 +117,27 @@ export async function addWorkoutToTemplate(input: z.infer<typeof addWorkoutSchem
   });
   if (!workout) throw new Error("Workout not found");
 
+  // Existing template, or create one on the spot.
+  let templateId = data.templateId;
+  if (templateId) {
+    await assertOwnTemplate(userId, templateId);
+  } else {
+    const created = await prisma.template.create({
+      data: { userId, name: data.newTemplateName!.trim() },
+      select: { id: true },
+    });
+    templateId = created.id;
+  }
+
   let dayId = data.dayId;
   if (dayId) {
-    await assertOwnDay(userId, dayId);
+    const owning = await assertOwnDay(userId, dayId);
+    if (owning !== templateId) throw new Error("That day belongs to another template");
   } else {
-    const count = await prisma.templateDay.count({
-      where: { templateId: data.templateId },
-    });
+    const count = await prisma.templateDay.count({ where: { templateId } });
     const day = await prisma.templateDay.create({
       data: {
-        templateId: data.templateId,
+        templateId,
         name: (workout.name?.split("·").pop() ?? "").trim() || `Day ${count + 1}`,
         order: count,
       },
@@ -158,8 +174,8 @@ export async function addWorkoutToTemplate(input: z.infer<typeof addWorkoutSchem
     }),
   );
 
-  revalidateTemplateViews(data.templateId);
-  return { ok: true as const, templateId: data.templateId, dayId };
+  revalidateTemplateViews(templateId);
+  return { ok: true as const, templateId, dayId };
 }
 
 // --- template -------------------------------------------------------------

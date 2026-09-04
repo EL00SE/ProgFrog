@@ -81,7 +81,17 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       heightCm={user.heightCm}
       birthday={user.birthday}
     />,
-    <TemplatesPane key="templates" templates={templates} />,
+    <TemplatesPane
+      key="templates"
+      templates={templates}
+      pastWorkouts={workouts.slice(0, 40).map((w) => ({
+        id: w.id,
+        name: w.name,
+        number: w.number,
+        date: w.date.toISOString(),
+        exerciseNames: w.exerciseNames,
+      }))}
+    />,
     <ExercisesPane key="exercises" globals={globals} custom={customExercises} />,
   ];
 
