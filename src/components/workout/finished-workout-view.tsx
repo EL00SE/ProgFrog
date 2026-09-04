@@ -316,13 +316,24 @@ function ExerciseBlock({
         {we.sets.map((s, i) => (
           <div
             key={s.id}
-            className="grid grid-cols-[2rem_1fr_1fr_auto] items-center gap-2 tabular-nums"
+            className={cn(
+              "grid grid-cols-[2rem_4.5rem_4rem_1fr] items-center gap-2 tabular-nums",
+              // A drop set continues the set above with no rest — indent it so
+              // it reads as part of that set rather than a peer of its own. A
+              // *chain* of drops (dropped the weight twice or more) all sit at
+              // this same single indent, stacked under the set that started the
+              // chain — not staircased deeper per drop. Guard i > 0: a DROP
+              // can't belong to a set above it if it's the first row.
+              s.type === "DROP" && i > 0 && "ml-4",
+            )}
           >
             <span className="text-muted-foreground">
               {s.type === "WARMUP" ? "W" : i + 1}
             </span>
-            <span>{formatWeight(s.weight, unit)}</span>
-            <span>{timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}</span>
+            <span className="text-right">{formatWeight(s.weight, unit)}</span>
+            <span className="text-right">
+              {timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}
+            </span>
             <span>
               {s.type === "DROP" || s.type === "FAILURE" ? (
                 <Badge variant="ghost" className="text-xs lowercase">
