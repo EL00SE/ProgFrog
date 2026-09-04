@@ -298,6 +298,17 @@ function ExerciseBlock({
   const longestHold = timed
     ? we.sets.reduce((m, s) => Math.max(m, s.seconds ?? 0), 0)
     : 0;
+  // A warmup shows "W", not a number, so it shouldn't consume one — otherwise
+  // every working set after it reads one higher than it should (first work
+  // set labelled "2", not "1").
+  const setNumbers = we.sets.reduce<{ list: (number | null)[]; count: number }>(
+    (acc, s) => {
+      if (s.type === "WARMUP") return { list: [...acc.list, null], count: acc.count };
+      const count = acc.count + 1;
+      return { list: [...acc.list, count], count };
+    },
+    { list: [], count: 0 },
+  ).list;
 
   return (
     <Card className={cn(!inGroup && "h-full", inGroup && "shadow-none")}>
@@ -328,7 +339,7 @@ function ExerciseBlock({
             )}
           >
             <span className="text-muted-foreground">
-              {s.type === "WARMUP" ? "W" : i + 1}
+              {s.type === "WARMUP" ? "W" : setNumbers[i]}
             </span>
             <span className="text-right">{formatWeight(s.weight, unit)}</span>
             <span className="text-right">
