@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -255,6 +256,28 @@ export function WorkoutLogger({
   const closing = React.useRef(false);
   const unit = workout.unit;
 
+  /**
+   * Apply `mutate`, then correct the scroll offset so `anchor` (the tapped
+   * button) doesn't move. Without this, adding a set grows the card and pushes
+   * the "Add set" / reps controls down out from under the user's finger.
+   */
+  function keepAnchored(anchor: HTMLElement | null | undefined, mutate: () => void) {
+    if (!anchor) {
+      mutate();
+      return;
+    }
+    let scroller: HTMLElement | null = anchor.parentElement;
+    while (scroller && scroller !== document.body) {
+      const oy = getComputedStyle(scroller).overflowY;
+      if (oy === "auto" || oy === "scroll") break;
+      scroller = scroller.parentElement;
+    }
+    const before = anchor.getBoundingClientRect().top;
+    flushSync(mutate);
+    const after = anchor.getBoundingClientRect().top;
+    if (scroller && after !== before) scroller.scrollTop += after - before;
+  }
+
   React.useEffect(() => {
     if (!newWeId) return;
     const el = document.querySelector<HTMLElement>(`[data-we="${CSS.escape(newWeId)}"]`);
@@ -354,7 +377,11 @@ export function WorkoutLogger({
     outbox.removeWorkoutExercise(weId);
   }
 
-  function handleAddSet(weId: string, opts?: { type?: SetType }) {
+  function handleAddSet(
+    weId: string,
+    opts?: { type?: SetType },
+    anchor?: HTMLElement | null,
+  ) {
     const we = exercises.find((e) => e.id === weId);
     if (!we) return;
     const type = opts?.type ?? "NORMAL";
@@ -371,8 +398,10 @@ export function WorkoutLogger({
       weight: seed.weight,
       rpe: null,
     } as SetEntry;
-    setExercises((list) =>
-      list.map((e) => (e.id === weId ? { ...e, sets: [...e.sets, optimistic] } : e)),
+    keepAnchored(anchor, () =>
+      setExercises((list) =>
+        list.map((e) => (e.id === weId ? { ...e, sets: [...e.sets, optimistic] } : e)),
+      ),
     );
     outbox.addSet(tempId, { workoutExerciseId: weId, type });
   }
@@ -550,8 +579,9 @@ export function WorkoutLogger({
           onMoveUp: () => handleMoveExercise(we.id, -1),
           onMoveDown: () => handleMoveExercise(we.id, 1),
           onRemove: () => handleRemoveExercise(we.id),
-          onAddSet: () => handleAddSet(we.id),
-          onAddDropSet: () => handleAddSet(we.id, { type: "DROP" }),
+          onAddSet: (anchor: HTMLElement) => handleAddSet(we.id, undefined, anchor),
+          onAddDropSet: (anchor: HTMLElement) =>
+            handleAddSet(we.id, { type: "DROP" }, anchor),
           onDeleteSet: (setId: string) => handleDeleteSet(we.id, setId),
           onPatchSet: (setId: string, patch: Partial<SetEntry>) =>
             patchSet(we.id, setId, patch),
@@ -731,8 +761,8 @@ function ExerciseCard({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
-  onAddSet: () => void;
-  onAddDropSet: () => void;
+  onAddSet: (anchor: HTMLElement) => void;
+  onAddDropSet: (anchor: HTMLElement) => void;
   onDeleteSet: (setId: string) => void;
   onPatchSet: (setId: string, patch: Partial<SetEntry>) => void;
   onSaveSet: (setId: string, patch: Partial<SetEntry>) => void;
@@ -993,14 +1023,19 @@ function ExerciseCard({
             });
           })()}
           <div className="mt-1 flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={onAddSet} disabled={disabled}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => onAddSet(e.currentTarget)}
+              disabled={disabled}
+            >
               <Plus className="size-3.5" /> Add set
             </Button>
             {!timed ? (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={onAddDropSet}
+                onClick={(e) => onAddDropSet(e.currentTarget)}
                 disabled={disabled}
                 title="Adds a set marked as a drop — lower the weight and rep out again with no rest"
               >
