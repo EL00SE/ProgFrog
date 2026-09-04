@@ -70,7 +70,8 @@ export function TabPager({
   }
 
   // Keep the local index in step with the URL when it changes from outside the
-  // pager (a tab tap, the back button, a deep link).
+  // pager (a tab tap, the back button, a deep link). A tab tap is a shallow
+  // `history.pushState`, so Next never renders the route — set the title here.
   React.useEffect(() => {
     if (pathIndex === -1) return;
     if (selfNav.current) {
@@ -78,7 +79,8 @@ export function TabPager({
       return;
     }
     setIndex(pathIndex);
-  }, [pathIndex]);
+    if (titles[pathIndex]) document.title = titles[pathIndex];
+  }, [pathIndex, titles]);
 
   // Animate the strip to `index` (used for taps / back / the tail of a swipe).
   const positionStrip = React.useCallback(

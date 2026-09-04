@@ -22,6 +22,34 @@ const links = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
+// The five tabs the pager keeps mounted side-by-side. A click that stays within
+// this set can skip Next's router entirely: `history.pushState` alone syncs
+// `usePathname` and the pager's strip — no RSC fetch, no re-render — which is
+// what makes a swipe feel instant. A click into/out of a detail route (or
+// Settings) still needs a real navigation so the route segment swaps.
+const PAGER_TABS = new Set(links.slice(0, 5).map((l) => l.href));
+
+/** Intercept a tab→tab click and turn it into an instant shallow URL change. */
+function maybeShallow(
+  e: React.MouseEvent<HTMLAnchorElement>,
+  href: string,
+  pathname: string,
+) {
+  if (
+    e.defaultPrevented ||
+    e.button !== 0 ||
+    e.metaKey ||
+    e.ctrlKey ||
+    e.shiftKey ||
+    e.altKey
+  ) {
+    return;
+  }
+  if (!PAGER_TABS.has(href) || !PAGER_TABS.has(pathname)) return;
+  e.preventDefault();
+  if (href !== pathname) window.history.pushState(null, "", href);
+}
+
 function useActive() {
   const pathname = usePathname();
   return (href: string, exact?: boolean) =>
@@ -30,6 +58,7 @@ function useActive() {
 
 /** Top nav — desktop only. */
 export function DashboardNav() {
+  const pathname = usePathname();
   const isActive = useActive();
 
   return (
@@ -44,6 +73,7 @@ export function DashboardNav() {
             <Link
               key={href}
               href={href}
+              onClick={(e) => maybeShallow(e, href, pathname)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors",
@@ -64,6 +94,7 @@ export function DashboardNav() {
 
 /** Bottom tab bar — mobile only. Settings lives in the avatar menu on mobile. */
 export function DashboardTabBar() {
+  const pathname = usePathname();
   const isActive = useActive();
   const tabs = links.slice(0, 5);
 
@@ -79,6 +110,7 @@ export function DashboardTabBar() {
             <Link
               key={href}
               href={href}
+              onClick={(e) => maybeShallow(e, href, pathname)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "text-muted-foreground hover:text-foreground flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[0.7rem] leading-none font-medium transition-colors",
