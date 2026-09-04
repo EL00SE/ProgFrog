@@ -56,7 +56,14 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
-  position = "item-aligned",
+  // "item-aligned" (Radix's default) overlays the content on the trigger by
+  // hand-computing its own position rather than using floating-ui collision
+  // detection — inside a scrolling/nested layout (a card in a scroll
+  // container, itself inside another scroll container, ...) that math can
+  // come out wrong and the menu renders tiny in the top-left corner. "popper"
+  // uses the same floating-ui positioning as Popover/DropdownMenu, which is
+  // aware of its actual scroll ancestors, so every Select in the app gets it.
+  position = "popper",
   align = "center",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
