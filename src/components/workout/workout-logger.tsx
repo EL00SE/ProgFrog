@@ -1002,9 +1002,14 @@ function ExerciseCard({
             </div>
           )}
           {(() => {
+            // Only a NORMAL set's token shows this number (others show their
+            // W/D/F letter instead — see SetRowImpl's `token`), so only those
+            // sets should consume a number. Counting every non-warmup set
+            // here made a drop/failure set silently eat a slot, so the next
+            // working set jumped from e.g. 3 straight to 5.
             let n = 0;
             return we.sets.map((s) => {
-              const number = s.type === "WARMUP" ? null : (n += 1);
+              const number = s.type === "NORMAL" ? (n += 1) : null;
               return (
                 <SetRow
                   key={s.id}
