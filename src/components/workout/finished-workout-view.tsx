@@ -372,18 +372,20 @@ function ExerciseBlock({
         {we.sets.map((s, i) => (
           <div
             key={s.id}
-            className={cn(
-              "grid grid-cols-[2rem_4.5rem_4rem_1fr] items-center gap-2 tabular-nums",
-              // A drop set continues the set above with no rest — indent it so
-              // it reads as part of that set rather than a peer of its own. A
-              // *chain* of drops (dropped the weight twice or more) all sit at
-              // this same single indent, stacked under the set that started the
-              // chain — not staircased deeper per drop. Guard i > 0: a DROP
-              // can't belong to a set above it if it's the first row.
-              s.type === "DROP" && i > 0 && "ml-4",
-            )}
+            className="grid grid-cols-[2rem_4.5rem_4rem_1fr] items-center gap-2 tabular-nums"
           >
-            <span className="text-muted-foreground">
+            {/* A drop set continues the set above with no rest. Only its "↳"
+                marker is nudged in — the weight/reps columns stay aligned with
+                every other row so the drop (usually a lighter weight) reads
+                straight down the column. A *chain* of drops all get the same
+                single nudge, not a deeper staircase per drop. Guard i > 0: a
+                DROP on the first row has nothing above it to continue. */}
+            <span
+              className={cn(
+                "text-muted-foreground",
+                s.type === "DROP" && i > 0 && "pl-3",
+              )}
+            >
               {s.type === "WARMUP"
                 ? "W"
                 : s.type === "DROP" && i > 0
