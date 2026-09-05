@@ -33,11 +33,14 @@ import {
   LINK_OPTION_LABELS,
   LINK_TRIGGER_LABELS,
   linkedGroupLabel,
+  SET_CHOICES,
+  type SetChoice,
+  setChoiceOf,
   SET_TYPE_CODE,
   SET_TYPE_LABELS,
-  SET_TYPE_VALUES,
   type SetType,
   slotLabel,
+  TO_FAILURE_MARK,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import { deleteWorkout, finishWorkout } from "@/lib/actions/workouts";
@@ -391,6 +394,7 @@ export function WorkoutLogger({
       workoutExerciseId: weId,
       order: (we.sets.at(-1)?.order ?? -1) + 1,
       type,
+      toFailure: false,
       targetReps: we.targetReps ?? null,
       reps: seed.reps,
       seconds: null,
@@ -433,6 +437,7 @@ export function WorkoutLogger({
     outbox.updateSet({
       setId,
       type: patch.type ?? undefined,
+      toFailure: patch.toFailure,
       reps: patch.reps,
       seconds: patch.seconds,
       weight: patch.weight,
@@ -552,7 +557,7 @@ export function WorkoutLogger({
       {exercises.length > 0 && (
         <p className="text-muted-foreground px-1 text-xs">
           Tap a set number to tag it — <b>W</b> warm-up (not counted) · <b>D</b> drop ·{" "}
-          <b>F</b> failure.
+          <b>{TO_FAILURE_MARK}</b> to failure.
         </p>
       )}
 
@@ -1002,11 +1007,10 @@ function ExerciseCard({
             </div>
           )}
           {(() => {
-            // Only a NORMAL set's token shows this number (others show their
-            // W/D/F letter instead — see SetRowImpl's `token`), so only those
-            // sets should consume a number. Counting every non-warmup set
-            // here made a drop/failure set silently eat a slot, so the next
-            // working set jumped from e.g. 3 straight to 5.
+            // A warm-up ("W") and a drop ("D") show a letter, not a number, so
+            // they don't consume one — otherwise the next working set jumps from
+            // e.g. 3 to 5. A to-failure set is still a NORMAL working set, so it
+            // does keep its number (with a "↯" beside it).
             let n = 0;
             return we.sets.map((s) => {
               const number = s.type === "NORMAL" ? (n += 1) : null;
@@ -1060,12 +1064,12 @@ function ExerciseCard({
   );
 }
 
-const SET_TYPE_TONE: Record<SetType, string> = {
-  WARMUP: "text-amber-600 dark:text-amber-400",
-  NORMAL: "text-muted-foreground",
-  DROP: "text-violet-600 dark:text-violet-400",
-  FAILURE: "text-rose-600 dark:text-rose-400",
-};
+function setTone(s: { type: SetType; toFailure: boolean }): string {
+  if (s.type === "WARMUP") return "text-amber-600 dark:text-amber-400";
+  if (s.type === "DROP") return "text-violet-600 dark:text-violet-400";
+  if (s.toFailure) return "text-rose-600 dark:text-rose-400";
+  return "text-muted-foreground";
+}
 
 /**
  * The compact set-type control. A radix Select on desktop; on phones a native
@@ -1079,11 +1083,11 @@ function SetTypeField({
   label,
   onChange,
 }: {
-  value: SetType;
+  value: SetChoice;
   token: React.ReactNode;
   tone: string;
   label: string;
-  onChange: (type: SetType) => void;
+  onChange: (key: SetChoice) => void;
 }) {
   const isMobile = useIsMobile();
 
@@ -1100,12 +1104,12 @@ function SetTypeField({
         <select
           value={value}
           aria-label={label}
-          onChange={(e) => onChange(e.target.value as SetType)}
+          onChange={(e) => onChange(e.target.value as SetChoice)}
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         >
-          {SET_TYPE_VALUES.map((t) => (
-            <option key={t} value={t}>
-              {SET_TYPE_LABELS[t]}
+          {SET_CHOICES.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.label}
             </option>
           ))}
         </select>
@@ -1114,7 +1118,7 @@ function SetTypeField({
   }
 
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as SetType)}>
+    <Select value={value} onValueChange={(v) => onChange(v as SetChoice)}>
       <SelectTrigger
         size="sm"
         aria-label={label}
@@ -1126,9 +1130,9 @@ function SetTypeField({
         {token}
       </SelectTrigger>
       <SelectContent>
-        {SET_TYPE_VALUES.map((t) => (
-          <SelectItem key={t} value={t}>
-            {SET_TYPE_LABELS[t]}
+        {SET_CHOICES.map((c) => (
+          <SelectItem key={c.key} value={c.key}>
+            {c.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -1211,18 +1215,34 @@ function SetRowImpl({
     onSave(patch);
   }
 
-  const token = set.type === "NORMAL" ? (number ?? "•") : SET_TYPE_CODE[set.type];
+  const token =
+    set.type !== "NORMAL" ? (
+      SET_TYPE_CODE[set.type]
+    ) : set.toFailure ? (
+      <span className="inline-flex items-baseline">
+        {number ?? "•"}
+        <span className="text-[0.7em] leading-none">{TO_FAILURE_MARK}</span>
+      </span>
+    ) : (
+      (number ?? "•")
+    );
 
   return (
     <div className="grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2">
       <SetTypeField
-        value={set.type}
+        value={setChoiceOf(set)}
         token={token}
-        tone={SET_TYPE_TONE[set.type]}
-        label={`Set type — ${SET_TYPE_LABELS[set.type]}`}
-        onChange={(t) => {
-          onPatch({ type: t });
-          onSave({ type: t });
+        tone={setTone(set)}
+        label={
+          set.type === "NORMAL" && set.toFailure
+            ? "Set type — Normal set, to failure"
+            : `Set type — ${SET_TYPE_LABELS[set.type]}`
+        }
+        onChange={(key) => {
+          const c = SET_CHOICES.find((x) => x.key === key)!;
+          const patch = { type: c.type, toFailure: c.toFailure };
+          onPatch(patch);
+          onSave(patch);
         }}
       />
       <WheelField

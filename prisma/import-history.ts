@@ -240,6 +240,7 @@ async function main() {
     setCreate: {
       order: number;
       type: SetType;
+      toFailure: boolean;
       reps: number;
       seconds: number | null;
       weight: number;
@@ -328,7 +329,8 @@ async function main() {
           notes: noteBits.join(" · ") || null,
           setCreate: setsFor.get(key)!.map((s, si) => ({
             order: si,
-            type: (s.drop ? "DROP" : s.failure ? "FAILURE" : "NORMAL") as SetType,
+            type: (s.drop ? "DROP" : "NORMAL") as SetType,
+            toFailure: !s.drop && !!s.failure,
             reps: s.reps,
             seconds: s.seconds || null,
             weight: s.weight,

@@ -338,6 +338,7 @@ export async function duplicateTemplateDay(dayId: string) {
             create: te.sets.map((ts) => ({
               order: ts.order,
               type: ts.type,
+              toFailure: ts.toFailure,
               targetReps: ts.targetReps,
             })),
           },
@@ -508,6 +509,7 @@ export async function addTemplateSet(templateExerciseId: string) {
       templateExerciseId,
       order: last ? last.order + 1 : 0,
       type: last?.type ?? "NORMAL",
+      toFailure: last?.toFailure ?? false,
     },
   });
   revalidateTemplateList();
@@ -517,6 +519,7 @@ export async function addTemplateSet(templateExerciseId: string) {
 const updateSetSchema = z.object({
   id: z.string().min(1),
   type: setTypeEnum.optional(),
+  toFailure: z.boolean().optional(),
   targetReps: z.string().trim().max(20).nullable().optional(),
 });
 
@@ -524,10 +527,12 @@ export async function updateTemplateSet(input: z.infer<typeof updateSetSchema>) 
   const userId = await getCurrentUserId();
   const data = updateSetSchema.parse(input);
   await assertOwnTemplateSet(userId, data.id);
+  const toFailure = data.type && data.type !== "NORMAL" ? false : data.toFailure;
   await prisma.templateSet.update({
     where: { id: data.id },
     data: {
       type: data.type === undefined ? undefined : (data.type as SetType),
+      toFailure,
       targetReps: data.targetReps === undefined ? undefined : data.targetReps,
     },
   });

@@ -23,10 +23,9 @@ import {
   LINK_HINTS,
   LINK_LABELS,
   LINK_OPTION_LABELS,
-  SET_TYPE_LABELS,
-  SET_TYPE_SHORT,
-  SET_TYPE_VALUES,
-  type SetType,
+  SET_CHOICES,
+  type SetChoice,
+  setChoiceOf,
   slotLabel,
 } from "@/lib/training";
 import { cn } from "@/lib/utils";
@@ -175,7 +174,14 @@ function swapSlot(t: FT, tempId: string, real: Slot, tempSets: Slot["sets"]): FT
           ...real,
           sets: real.sets.map((rs, i) => {
             const local = e.sets.find((x) => x.id === tempSets[i]?.id) ?? tempSets[i];
-            return local ? { ...rs, type: local.type, targetReps: local.targetReps } : rs;
+            return local
+              ? {
+                  ...rs,
+                  type: local.type,
+                  toFailure: local.toFailure,
+                  targetReps: local.targetReps,
+                }
+              : rs;
           }),
         };
       }),
@@ -503,6 +509,7 @@ export function TemplateEditor({
       templateExerciseId: slotId,
       order: (last?.order ?? -1) + 1,
       type: last?.type ?? "NORMAL",
+      toFailure: last?.toFailure ?? false,
       targetReps: null,
     };
     editSlot(slotId, (s) => ({ ...s, sets: [...s.sets, temp] }));
@@ -523,9 +530,12 @@ export function TemplateEditor({
       }
     });
   }
-  function setSetType(setId: string, type: SetType) {
-    editSet(setId, (s) => ({ ...s, type }));
-    persistFor(setId, (id) => updateTemplateSet({ id, type }));
+  function setSetChoice(setId: string, key: SetChoice) {
+    const c = SET_CHOICES.find((x) => x.key === key)!;
+    editSet(setId, (s) => ({ ...s, type: c.type, toFailure: c.toFailure }));
+    persistFor(setId, (id) =>
+      updateTemplateSet({ id, type: c.type, toFailure: c.toFailure }),
+    );
   }
   function setSetReps(setId: string, targetReps: string | null) {
     editSet(setId, (s) => ({ ...s, targetReps }));
@@ -599,7 +609,7 @@ export function TemplateEditor({
             onDefaultReps={(slotId, r) => setDefaultReps(slotId, r)}
             onLink={(slotId, l) => setLink(slotId, l)}
             onAddSet={(slotId) => addSet(slotId)}
-            onSetType={(setId, t) => setSetType(setId, t)}
+            onSetType={(setId, c) => setSetChoice(setId, c)}
             onSetReps={(setId, r) => setSetReps(setId, r)}
             onRemoveSet={(slotId, setId) => removeSet(slotId, setId)}
           />
@@ -680,7 +690,7 @@ function DayCard({
   onDefaultReps: (slotId: string, targetReps: string | null) => void;
   onLink: (slotId: string, link: ExerciseLink | null) => void;
   onAddSet: (slotId: string) => void;
-  onSetType: (setId: string, type: SetType) => void;
+  onSetType: (setId: string, choice: SetChoice) => void;
   onSetReps: (setId: string, targetReps: string | null) => void;
   onRemoveSet: (slotId: string, setId: string) => void;
 }) {
@@ -919,7 +929,7 @@ function SlotRow({
   onDefaultReps: (targetReps: string | null) => void;
   onLink: (link: ExerciseLink | null) => void;
   onAddSet: () => void;
-  onSetType: (setId: string, type: SetType) => void;
+  onSetType: (setId: string, choice: SetChoice) => void;
   onSetReps: (setId: string, targetReps: string | null) => void;
   onRemoveSet: (setId: string) => void;
 }) {
@@ -1092,7 +1102,7 @@ function TemplateSetRow({
   enter: boolean;
   defaultReps: string | null;
   canRemove: boolean;
-  onType: (type: SetType) => void;
+  onType: (choice: SetChoice) => void;
   onReps: (targetReps: string | null) => void;
   onRemove: () => void;
 }) {
@@ -1104,14 +1114,16 @@ function TemplateSetRow({
       )}
     >
       <span className="text-muted-foreground text-xs tabular-nums">{number}</span>
-      <Select value={ts.type} onValueChange={(v) => onType(v as SetType)}>
+      <Select value={setChoiceOf(ts)} onValueChange={(v) => onType(v as SetChoice)}>
         <SelectTrigger size="sm" className="w-full" aria-label="Set type">
-          <SelectValue>{SET_TYPE_SHORT[ts.type]}</SelectValue>
+          <SelectValue>
+            {SET_CHOICES.find((c) => c.key === setChoiceOf(ts))?.short}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {SET_TYPE_VALUES.map((t) => (
-            <SelectItem key={t} value={t}>
-              {SET_TYPE_LABELS[t]}
+          {SET_CHOICES.map((c) => (
+            <SelectItem key={c.key} value={c.key}>
+              {c.label}
             </SelectItem>
           ))}
         </SelectContent>

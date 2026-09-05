@@ -130,13 +130,12 @@ enum WeightUnit {
 
 /// The kind of a single set — planned (in a template) or logged (in a workout).
 /// `NORMAL` is a straight working set; `WARMUP` is excluded from volume/PR math;
-/// `DROP` continues the previous set at a lighter load with no rest; `FAILURE`
-/// is taken to muscular failure.
+/// `DROP` continues the previous set at a lighter load with no rest. Taking a set
+/// to failure is not its own kind — it's a `toFailure` flag on a NORMAL set.
 enum SetType {
   WARMUP
   NORMAL
   DROP
-  FAILURE
 }
 
 /// How an exercise connects to the next one in the same session.
@@ -223,6 +222,9 @@ model SetEntry {
   workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
   order             Int             @default(0)
   type              SetType         @default(NORMAL)
+  /// A NORMAL working set taken to muscular failure (an AMRAP effort). Not a
+  /// separate set kind — a modifier on the set.
+  toFailure         Boolean         @default(false)
   /// Rep target for this set, snapshotted from the template ("8-12", "AMRAP").
   targetReps        String?
   reps              Int             @default(0)
@@ -286,6 +288,8 @@ model TemplateSet {
   templateExercise   TemplateExercise @relation(fields: [templateExerciseId], references: [id], onDelete: Cascade)
   order              Int              @default(0)
   type               SetType          @default(NORMAL)
+  /// Planned as a to-failure effort — a modifier on a NORMAL set, not a kind.
+  toFailure          Boolean          @default(false)
   /// Per-set rep target; falls back to the slot's `targetReps` when null.
   targetReps         String?
 

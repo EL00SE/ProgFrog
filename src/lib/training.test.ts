@@ -84,7 +84,6 @@ describe("isWorkingSet", () => {
   it("counts everything except warm-ups", () => {
     expect(isWorkingSet({ type: "NORMAL" })).toBe(true);
     expect(isWorkingSet({ type: "DROP" })).toBe(true);
-    expect(isWorkingSet({ type: "FAILURE" })).toBe(true);
     expect(isWorkingSet({})).toBe(true);
     expect(isWorkingSet({ type: "WARMUP" })).toBe(false);
   });

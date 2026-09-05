@@ -16,6 +16,7 @@ import {
   linkedGroupLabel,
   SET_TYPE_SHORT,
   slotLabel,
+  TO_FAILURE_MARK,
   topSet,
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
@@ -386,20 +387,31 @@ function ExerciseBlock({
                 s.type === "DROP" && i > 0 && "pl-3",
               )}
             >
-              {s.type === "WARMUP"
-                ? "W"
-                : s.type === "DROP" && i > 0
-                  ? "↳"
-                  : setNumbers[i]}
+              {s.type === "WARMUP" ? (
+                "W"
+              ) : s.type === "DROP" && i > 0 ? (
+                "↳"
+              ) : (
+                <>
+                  {setNumbers[i]}
+                  {s.toFailure ? (
+                    <span className="text-[0.7em] leading-none">{TO_FAILURE_MARK}</span>
+                  ) : null}
+                </>
+              )}
             </span>
             <span className="text-right">{formatWeight(s.weight, unit)}</span>
             <span className="text-right">
               {timed ? `${s.seconds ?? 0}s` : `${s.reps} reps`}
             </span>
             <span>
-              {s.type === "DROP" || s.type === "FAILURE" ? (
+              {s.type === "DROP" ? (
                 <Badge variant="ghost" className="text-xs lowercase">
-                  {SET_TYPE_SHORT[s.type]}
+                  {SET_TYPE_SHORT.DROP}
+                </Badge>
+              ) : s.toFailure ? (
+                <Badge variant="ghost" className="text-xs lowercase">
+                  to failure
                 </Badge>
               ) : null}
             </span>

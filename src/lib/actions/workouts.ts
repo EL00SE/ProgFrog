@@ -591,6 +591,7 @@ export async function addSet(
 const updateSetSchema = z.object({
   setId: z.string().min(1),
   type: setTypeEnum.optional(),
+  toFailure: z.boolean().optional(),
   reps: z.number().int().min(0).max(1000).optional(),
   seconds: z.number().int().min(0).max(36000).nullable().optional(),
   weight: z.number().min(0).max(10000).optional(),
@@ -602,10 +603,15 @@ export async function updateSet(input: z.infer<typeof updateSetSchema>) {
   const data = updateSetSchema.parse(input);
   await assertOwnSet(userId, data.setId);
 
+  // "To failure" only means anything on a working set — clear it if this set is
+  // becoming a warm-up or a drop.
+  const toFailure = data.type && data.type !== "NORMAL" ? false : data.toFailure;
+
   await prisma.setEntry.update({
     where: { id: data.setId },
     data: {
       type: data.type === undefined ? undefined : (data.type as SetType),
+      toFailure,
       reps: data.reps,
       seconds: data.seconds === undefined ? undefined : data.seconds,
       weight: data.weight,

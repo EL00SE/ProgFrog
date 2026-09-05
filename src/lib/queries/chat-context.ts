@@ -122,7 +122,7 @@ export async function getChatContext(userId: string): Promise<string> {
               ? "warmup "
               : s.type === "DROP"
                 ? "drop "
-                : s.type === "FAILURE"
+                : s.toFailure
                   ? "to-failure "
                   : "";
           return s.seconds ? `${tag}${s.seconds}s` : `${tag}${w(s.weight)}×${s.reps}`;

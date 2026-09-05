@@ -5,16 +5,16 @@
 
 export type WeightUnit = "KG" | "LB";
 
-/** Mirrors the `SetType` enum in the Prisma schema. */
-export type SetType = "WARMUP" | "NORMAL" | "DROP" | "FAILURE";
+/** Mirrors the `SetType` enum in the Prisma schema. Taking a set to failure is
+ *  not a kind — it's the `toFailure` flag on a NORMAL set (see `SetLike`). */
+export type SetType = "WARMUP" | "NORMAL" | "DROP";
 
-export const SET_TYPE_VALUES = ["WARMUP", "NORMAL", "DROP", "FAILURE"] as const;
+export const SET_TYPE_VALUES = ["WARMUP", "NORMAL", "DROP"] as const;
 
 export const SET_TYPE_LABELS: Record<SetType, string> = {
   WARMUP: "Warm-up set",
   NORMAL: "Normal set",
   DROP: "Drop set",
-  FAILURE: "To failure",
 };
 
 /** Compact badge form for dense set rows. */
@@ -22,7 +22,6 @@ export const SET_TYPE_SHORT: Record<SetType, string> = {
   WARMUP: "Warm-up",
   NORMAL: "Normal",
   DROP: "Drop",
-  FAILURE: "Failure",
 };
 
 /** Single-letter code for the tightest set rows (always shown with a legend). */
@@ -30,14 +29,55 @@ export const SET_TYPE_CODE: Record<SetType, string> = {
   WARMUP: "W",
   NORMAL: "N",
   DROP: "D",
-  FAILURE: "F",
 };
+
+/** The "↯" is the to-failure marker, shown next to a NORMAL set's number. */
+export const TO_FAILURE_MARK = "↯";
+
+/** What the one-tap set-type picker offers. "To failure" is not a `SetType` —
+ *  it's a NORMAL set with `toFailure` — but the picker lists it as a fourth
+ *  choice (a variant of Normal, not a peer of Drop). */
+export type SetChoice = "WARMUP" | "NORMAL" | "FAILURE" | "DROP";
+
+export const SET_CHOICES: {
+  key: SetChoice;
+  label: string;
+  short: string;
+  type: SetType;
+  toFailure: boolean;
+}[] = [
+  {
+    key: "WARMUP",
+    label: "Warm-up set",
+    short: "Warm-up",
+    type: "WARMUP",
+    toFailure: false,
+  },
+  {
+    key: "NORMAL",
+    label: "Normal set",
+    short: "Normal",
+    type: "NORMAL",
+    toFailure: false,
+  },
+  {
+    key: "FAILURE",
+    label: "Normal set — to failure",
+    short: `Normal ${TO_FAILURE_MARK}`,
+    type: "NORMAL",
+    toFailure: true,
+  },
+  { key: "DROP", label: "Drop set", short: "Drop", type: "DROP", toFailure: false },
+];
+
+export function setChoiceOf(s: { type: SetType; toFailure: boolean }): SetChoice {
+  return s.type === "NORMAL" && s.toFailure ? "FAILURE" : (s.type as SetChoice);
+}
 
 export const SET_TYPE_HINTS: Record<SetType, string> = {
   WARMUP: "Lighter preparatory set — not counted in volume or personal records.",
   NORMAL: "A straight working set.",
   DROP: "Drop the weight from the set before and rep out again with no rest.",
-  FAILURE: "Take this set all the way to muscular failure.",
 };
 
 /** A warm-up set is excluded from volume, PR and progress math. */
