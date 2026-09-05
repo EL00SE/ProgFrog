@@ -353,6 +353,11 @@ export function ExercisePickerDialog({
         {open ? (
           <SheetContent
             side="bottom"
+            // Don't pull focus into the search field on open — that pops the
+            // on-screen keyboard straight away and buries the Recent list. The
+            // `autoFocus` prop on the input below only covers the native
+            // attribute; Radix's own focus trap still needs this to be told.
+            onOpenAutoFocus={(e) => e.preventDefault()}
             // Fixed tall height (not size-to-content) so the search field always
             // sits near the top of the screen; lifted clear of the keyboard.
             className="flex h-[80dvh] flex-col gap-3 rounded-t-2xl p-4"
