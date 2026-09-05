@@ -342,9 +342,11 @@ function ExerciseBlock({
   // and a chain of drops all continue that same set) — neither is its own
   // working set, so neither consumes a number, otherwise the set after reads
   // one too high. A "to failure" set is still its own working set and counts.
+  // A DROP as the very first row has nothing to continue, so it falls back to
+  // counting as a normal set (kept in step with the `i > 0` indent guard).
   const setNumbers = we.sets.reduce<{ list: (number | null)[]; count: number }>(
-    (acc, s) => {
-      if (s.type === "WARMUP" || s.type === "DROP") {
+    (acc, s, i) => {
+      if (s.type === "WARMUP" || (s.type === "DROP" && i > 0)) {
         return { list: [...acc.list, null], count: acc.count };
       }
       const count = acc.count + 1;
@@ -382,7 +384,11 @@ function ExerciseBlock({
             )}
           >
             <span className="text-muted-foreground">
-              {s.type === "WARMUP" ? "W" : s.type === "DROP" ? "↳" : setNumbers[i]}
+              {s.type === "WARMUP"
+                ? "W"
+                : s.type === "DROP" && i > 0
+                  ? "↳"
+                  : setNumbers[i]}
             </span>
             <span className="text-right">{formatWeight(s.weight, unit)}</span>
             <span className="text-right">
