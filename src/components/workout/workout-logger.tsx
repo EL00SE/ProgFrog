@@ -75,23 +75,75 @@ import {
 } from "@/components/workout/exercise-picker-dialog";
 import { getDefaultRest, restEvent } from "@/components/workout/rest-timer";
 import { WheelField } from "@/components/workout/wheel-field";
-import type { ExercisePrev } from "@/lib/queries/history";
+import type { ExercisePrev, PrevSet } from "@/lib/queries/history";
 
 type WE = FullWorkout["exercises"][number];
 type SetEntry = WE["sets"][number];
 type PrevMap = Record<string, ExercisePrev>;
 
-/** "Aug 21 — 60kg×8, 60kg×8, 55kg×6" from a previous session (weight × reps). */
-function formatPrev(prev: ExercisePrev, unit: "KG" | "LB", timed: boolean): string {
+type PrevGroup = PrevSet & { count: number };
+
+/** Fold runs of identical sets into one "×N" group so the recap stays short. */
+function groupPrevSets(sets: PrevSet[]): PrevGroup[] {
+  const out: PrevGroup[] = [];
+  for (const s of sets) {
+    const last = out.at(-1);
+    if (
+      last &&
+      last.weight === s.weight &&
+      last.reps === s.reps &&
+      last.seconds === s.seconds &&
+      last.type === s.type &&
+      last.toFailure === s.toFailure
+    ) {
+      last.count += 1;
+    } else {
+      out.push({ ...s, count: 1 });
+    }
+  }
+  return out;
+}
+
+/**
+ * "Last time Aug 21 · 60kg×8 ×3 · ↓40kg×12" — a previous session's working
+ * sets, grouped, with drop / to-failure marked so it reads at a glance and
+ * fits without a hard cut-off.
+ */
+function PrevLine({
+  prev,
+  unit,
+  timed,
+}: {
+  prev: ExercisePrev;
+  unit: "KG" | "LB";
+  timed: boolean;
+}) {
   const u = unit.toLowerCase();
-  const shown = prev.sets.slice(0, 5);
-  const parts = shown.map((s) =>
-    timed ? `${s.seconds ?? 0}s` : `${s.weight}${u}×${s.reps}`,
+  const groups = groupPrevSets(prev.sets);
+  const shown = groups.slice(0, 6);
+  const more = prev.sets.length - shown.reduce((n, g) => n + g.count, 0);
+  return (
+    <p className="text-muted-foreground mt-1 text-xs leading-relaxed text-pretty">
+      Last time {formatDate(prev.date, { month: "short", day: "numeric" })}
+      {shown.map((g, i) => (
+        <React.Fragment key={i}>
+          <span className="text-muted-foreground/50"> · </span>
+          <span
+            className={cn(
+              g.type === "DROP" && "text-violet-600 dark:text-violet-400",
+              g.toFailure && "text-rose-600 dark:text-rose-400",
+            )}
+          >
+            {g.type === "DROP" ? "↓" : ""}
+            {timed ? `${g.seconds ?? 0}s` : `${g.weight}${u}×${g.reps}`}
+            {g.toFailure ? TO_FAILURE_MARK : ""}
+            {g.count > 1 ? ` ×${g.count}` : ""}
+          </span>
+        </React.Fragment>
+      ))}
+      {more > 0 ? <span> +{more}</span> : null}
+    </p>
   );
-  const more = prev.sets.length - shown.length;
-  return `${formatDate(prev.date, { month: "short", day: "numeric" })} — ${parts.join(
-    ", ",
-  )}${more > 0 ? ` +${more}` : ""}`;
 }
 
 /** One-line recap for a collapsed, finished exercise: "4 sets · 560 kg". */
@@ -872,9 +924,7 @@ function ExerciseCard({
               </span>
             </div>
             {prevForExercise ? (
-              <p className="text-muted-foreground mt-1 truncate text-xs">
-                Last time: {formatPrev(prevForExercise, unit, timed)}
-              </p>
+              <PrevLine prev={prevForExercise} unit={unit} timed={timed} />
             ) : null}
           </div>
           <div className="flex shrink-0 items-start gap-0.5">

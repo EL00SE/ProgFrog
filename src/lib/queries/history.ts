@@ -1,9 +1,20 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { convertWeight, localDateKey, type WeightUnit } from "@/lib/training";
+import {
+  convertWeight,
+  localDateKey,
+  type SetType,
+  type WeightUnit,
+} from "@/lib/training";
 
-export type PrevSet = { weight: number; reps: number; seconds: number | null };
+export type PrevSet = {
+  weight: number;
+  reps: number;
+  seconds: number | null;
+  type: SetType;
+  toFailure: boolean;
+};
 export type ExercisePrev = { date: string; sets: PrevSet[] };
 
 /**
@@ -37,6 +48,8 @@ export async function getExercisePrev(
         weight: round(convertWeight(s.weight, we.workout.unit, displayUnit)),
         reps: s.reps,
         seconds: s.seconds,
+        type: s.type,
+        toFailure: s.toFailure,
       }));
     if (sets.length === 0) continue;
     out[we.exerciseId] = { date: localDateKey(we.workout.date), sets };
