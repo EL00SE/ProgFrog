@@ -105,9 +105,9 @@ function groupPrevSets(sets: PrevSet[]): PrevGroup[] {
 }
 
 /**
- * "Last time Aug 21 · 60kg×8 ×3 · ↓40kg×12" — a previous session's working
- * sets, grouped, with drop / to-failure marked so it reads at a glance and
- * fits without a hard cut-off.
+ * A recap of the previous session's working sets, on its own line above the
+ * set table. Runs of identical sets fold into one "×N" so it stays a glance;
+ * drop sets carry a "↓" (violet) and to-failure sets a "↯" (rose).
  */
 function PrevLine({
   prev,
@@ -120,29 +120,34 @@ function PrevLine({
 }) {
   const u = unit.toLowerCase();
   const groups = groupPrevSets(prev.sets);
-  const shown = groups.slice(0, 6);
+  const shown = groups.slice(0, 8);
   const more = prev.sets.length - shown.reduce((n, g) => n + g.count, 0);
   return (
-    <p className="text-muted-foreground mt-1 text-xs leading-relaxed text-pretty">
-      Last time {formatDate(prev.date, { month: "short", day: "numeric" })}
-      {shown.map((g, i) => (
-        <React.Fragment key={i}>
-          <span className="text-muted-foreground/50"> · </span>
+    <div className="bg-muted/40 flex flex-col gap-1.5 rounded-lg px-3 py-2.5">
+      <span className="text-muted-foreground text-[0.7rem] font-semibold tracking-wide uppercase">
+        Last time · {formatDate(prev.date, { month: "short", day: "numeric" })}
+      </span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm tabular-nums">
+        {shown.map((g, i) => (
           <span
+            key={i}
             className={cn(
+              "whitespace-nowrap",
               g.type === "DROP" && "text-violet-600 dark:text-violet-400",
               g.toFailure && "text-rose-600 dark:text-rose-400",
             )}
           >
-            {g.type === "DROP" ? "↓" : ""}
-            {timed ? `${g.seconds ?? 0}s` : `${g.weight}${u}×${g.reps}`}
-            {g.toFailure ? TO_FAILURE_MARK : ""}
-            {g.count > 1 ? ` ×${g.count}` : ""}
+            {g.type === "DROP" ? "↓ " : ""}
+            {timed ? `${g.seconds ?? 0}s` : `${g.weight}${u} × ${g.reps}`}
+            {g.toFailure ? ` ${TO_FAILURE_MARK}` : ""}
+            {g.count > 1 ? (
+              <span className="text-muted-foreground"> ×{g.count}</span>
+            ) : null}
           </span>
-        </React.Fragment>
-      ))}
-      {more > 0 ? <span> +{more}</span> : null}
-    </p>
+        ))}
+        {more > 0 ? <span className="text-muted-foreground">+{more} more</span> : null}
+      </div>
+    </div>
   );
 }
 
@@ -591,7 +596,7 @@ export function WorkoutLogger({
       </div>
 
       {exercises.length > 0 && (
-        <div className="bg-background/85 sticky top-14 z-20 -mx-4 flex items-center gap-3 border-b px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:rounded-lg md:border md:px-3">
+        <div className="bg-background/85 sticky top-0 z-20 -mx-4 flex items-center gap-3 border-b px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:rounded-lg md:border md:px-3">
           <span className="text-sm font-medium tabular-nums">
             {doneCount} / {exercises.length} done
           </span>
@@ -923,9 +928,6 @@ function ExerciseCard({
                 {index + 1}/{total}
               </span>
             </div>
-            {prevForExercise ? (
-              <PrevLine prev={prevForExercise} unit={unit} timed={timed} />
-            ) : null}
           </div>
           <div className="flex shrink-0 items-start gap-0.5">
             {!inGroup && (canMoveUp || canMoveDown) ? (
@@ -1048,6 +1050,9 @@ function ExerciseCard({
 
       {!unfilled && (
         <CardContent className="flex flex-col gap-1.5">
+          {prevForExercise ? (
+            <PrevLine prev={prevForExercise} unit={unit} timed={timed} />
+          ) : null}
           {we.sets.length > 0 && (
             <div className="text-muted-foreground grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2 px-1 text-xs font-medium">
               <span>Set</span>
