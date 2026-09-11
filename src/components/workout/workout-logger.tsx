@@ -105,9 +105,10 @@ function groupPrevSets(sets: PrevSet[]): PrevGroup[] {
 }
 
 /**
- * A recap of the previous session's working sets, on its own line above the
- * set table. Runs of identical sets fold into one "×N" so it stays a glance;
- * drop sets carry a "↓" (violet) and to-failure sets a "↯" (rose).
+ * A recap of the previous session's sets, on its own line above the set
+ * table. Runs of identical sets fold into one "×N" so it stays a glance;
+ * warm-ups carry a "W" (amber, matching the set-type token), drop sets a "↓"
+ * (violet), and to-failure sets a "↯" (rose).
  */
 function PrevLine({
   prev,
@@ -133,11 +134,12 @@ function PrevLine({
             key={i}
             className={cn(
               "whitespace-nowrap",
+              g.type === "WARMUP" && "text-amber-600 dark:text-amber-400",
               g.type === "DROP" && "text-violet-600 dark:text-violet-400",
               g.toFailure && "text-rose-600 dark:text-rose-400",
             )}
           >
-            {g.type === "DROP" ? "↓ " : ""}
+            {g.type === "WARMUP" ? "W " : g.type === "DROP" ? "↓ " : ""}
             {timed ? `${g.seconds ?? 0}s` : `${g.weight}${u} × ${g.reps}`}
             {g.toFailure ? ` ${TO_FAILURE_MARK}` : ""}
             {g.count > 1 ? (
@@ -283,7 +285,11 @@ function optimisticWE(
 /** What a fresh set should start at — matches the server's addSet() seeding. */
 function seedSet(we: WE, type: SetType, prev: PrevMap): { weight: number; reps: number } {
   const last = we.sets.at(-1);
-  const fromPrev = we.exercise ? prev[we.exercise.id]?.sets[0] : undefined;
+  // Skip a warm-up here — `prev.sets` now includes it (for the recap), but
+  // seeding a fresh set from a warm-up's lighter load would be wrong.
+  const fromPrev = we.exercise
+    ? prev[we.exercise.id]?.sets.find((s) => s.type !== "WARMUP")
+    : undefined;
   let weight = last?.weight ?? fromPrev?.weight ?? 0;
   const reps = last?.reps ?? fromPrev?.reps ?? 0;
   if (type === "DROP" && weight > 0) {

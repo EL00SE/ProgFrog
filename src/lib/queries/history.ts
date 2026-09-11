@@ -20,7 +20,8 @@ export type ExercisePrev = { date: string; sets: PrevSet[] };
 /**
  * The last time the user did each exercise (finished workouts only), keyed by
  * exercise id. Weights are in `displayUnit`. Used to surface recents in the
- * picker and show "last time" on a mid-workout exercise.
+ * picker and show "last time" on a mid-workout exercise — warm-ups included,
+ * so the recap matches what was actually done that session.
  */
 export async function getExercisePrev(
   userId: string,
@@ -43,7 +44,7 @@ export async function getExercisePrev(
   for (const we of rows) {
     if (!we.exerciseId || out[we.exerciseId]) continue; // first row = most recent
     const sets = we.sets
-      .filter((s) => s.type !== "WARMUP" && (s.reps > 0 || (s.seconds ?? 0) > 0))
+      .filter((s) => s.reps > 0 || (s.seconds ?? 0) > 0)
       .map((s) => ({
         weight: round(convertWeight(s.weight, we.workout.unit, displayUnit)),
         reps: s.reps,
