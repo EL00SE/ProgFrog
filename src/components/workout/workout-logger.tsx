@@ -106,9 +106,11 @@ function groupPrevSets(sets: PrevSet[]): PrevGroup[] {
 
 /**
  * A recap of the previous session's sets, on its own line above the set
- * table. Runs of identical sets fold into one "×N" so it stays a glance;
- * warm-ups carry a "W" (amber, matching the set-type token), drop sets a "↓"
- * (violet), and to-failure sets a "↯" (rose).
+ * table. Names the equipment used that time — an exercise like Shrug or Curl
+ * can be logged under several (barbell, dumbbell, cable, machine…), so the
+ * weight alone doesn't say which. Runs of identical sets fold into one "×N"
+ * so it stays a glance; warm-ups carry a "W" (amber, matching the set-type
+ * token), drop sets a "↓" (violet), and to-failure sets a "↯" (rose).
  */
 function PrevLine({
   prev,
@@ -126,7 +128,8 @@ function PrevLine({
   return (
     <div className="bg-muted/40 flex flex-col gap-1.5 rounded-lg px-3 py-2.5">
       <span className="text-muted-foreground text-[0.7rem] font-semibold tracking-wide uppercase">
-        Last time · {formatDate(prev.date, { month: "short", day: "numeric" })}
+        Last time · {formatDate(prev.date, { month: "short", day: "numeric" })} ·{" "}
+        {EQUIPMENT_LABELS[prev.equipment] ?? prev.equipment}
       </span>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm tabular-nums">
         {shown.map((g, i) => (

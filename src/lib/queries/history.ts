@@ -15,13 +15,16 @@ export type PrevSet = {
   type: SetType;
   toFailure: boolean;
 };
-export type ExercisePrev = { date: string; sets: PrevSet[] };
+export type ExercisePrev = { date: string; equipment: string; sets: PrevSet[] };
 
 /**
  * The last time the user did each exercise (finished workouts only), keyed by
  * exercise id. Weights are in `displayUnit`. Used to surface recents in the
  * picker and show "last time" on a mid-workout exercise — warm-ups included,
- * so the recap matches what was actually done that session.
+ * so the recap matches what was actually done that session. Equipment is
+ * included too: some exercises (Shrug, Curl, Row…) are logged under barbell,
+ * dumbbell, cable, and machine variants alike, so last time's weight is only
+ * meaningful next to which one it was.
  */
 export async function getExercisePrev(
   userId: string,
@@ -37,6 +40,7 @@ export async function getExercisePrev(
     include: {
       sets: { orderBy: { order: "asc" } },
       workout: { select: { date: true, unit: true } },
+      exercise: { select: { equipment: true } },
     },
   });
 
@@ -53,7 +57,11 @@ export async function getExercisePrev(
         toFailure: s.toFailure,
       }));
     if (sets.length === 0) continue;
-    out[we.exerciseId] = { date: localDateKey(we.workout.date), sets };
+    out[we.exerciseId] = {
+      date: localDateKey(we.workout.date),
+      equipment: we.equipment ?? we.exercise?.equipment ?? "OTHER",
+      sets,
+    };
   }
   return out;
 }
