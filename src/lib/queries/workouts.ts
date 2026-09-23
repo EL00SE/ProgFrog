@@ -40,14 +40,18 @@ export function getWorkout(userId: string, workoutId: string) {
 
 export type FullWorkout = NonNullable<Awaited<ReturnType<typeof getWorkout>>>;
 
-/** The user's in-progress workout (no `finishedAt`), if any. */
-export function getActiveWorkout(userId: string) {
-  return prisma.workout.findFirst({
+/**
+ * The user's in-progress workout (no `finishedAt`), if any — just enough to
+ * link to it. Cached per request: the dashboard layout and its "in progress"
+ * bar both ask, and this runs on every render of the shell.
+ */
+export const getActiveWorkout = cache((userId: string) =>
+  prisma.workout.findFirst({
     where: { userId, finishedAt: null },
     orderBy: { createdAt: "desc" },
-    include: workoutInclude,
-  });
-}
+    select: { id: true, name: true },
+  }),
+);
 
 /**
  * Every finished workout for the user, newest first. Cached per request so the
@@ -74,9 +78,9 @@ export function getWorkoutNumber(userId: string, date: Date) {
   });
 }
 
-type WorkoutWithSets = Awaited<ReturnType<typeof getActiveWorkout>>;
+type WorkoutWithSets = FullWorkout;
 
-export function summarizeWorkout(w: NonNullable<WorkoutWithSets>, number?: number) {
+export function summarizeWorkout(w: WorkoutWithSets, number?: number) {
   const allSets: SetLike[] = w.exercises.flatMap((we) =>
     we.sets.map((s) => ({
       reps: s.reps,

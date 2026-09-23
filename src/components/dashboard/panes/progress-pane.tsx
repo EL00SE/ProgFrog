@@ -13,17 +13,12 @@ import {
 } from "@/components/progress/progress-view";
 import { ProgressPaneClient } from "@/components/dashboard/panes/progress-pane-client";
 
-export async function ProgressPane({
-  userId,
-  unit,
-  heightCm,
-  birthday,
-}: {
-  userId: string;
-  unit: WeightUnit;
-  heightCm: number | null;
-  birthday: Date | null;
-}) {
+/**
+ * Everything the Progress pane shows on first paint. Split out so the layout
+ * can start it alongside its own queries rather than after them — the pane
+ * component only runs once the layout has finished awaiting.
+ */
+export async function loadProgressPane(userId: string, unit: WeightUnit) {
   // Layouts don't receive searchParams; the client re-seeds from the URL on
   // mount. The server just fetches a sensible default so first paint isn't empty.
   const [exercises, muscles, bodyData] = await Promise.all([
@@ -50,18 +45,32 @@ export async function ProgressPane({
       : await getExerciseProgress(userId, initialKey, unit)
     : null;
 
+  return { bodyData, exerciseOptions, muscleOptions, view, initialKey, initialSeries };
+}
+
+export function ProgressPane({
+  unit,
+  heightCm,
+  birthday,
+  data,
+}: {
+  unit: WeightUnit;
+  heightCm: number | null;
+  birthday: Date | null;
+  data: Awaited<ReturnType<typeof loadProgressPane>>;
+}) {
   return (
     <Pane>
       <ProgressPaneClient
         unit={unit}
         heightCm={heightCm}
         birthday={birthday ? birthday.toISOString() : null}
-        bodyData={bodyData}
-        exerciseOptions={exerciseOptions}
-        muscleOptions={muscleOptions}
-        initialView={view}
-        initialKey={initialKey}
-        initialSeries={initialSeries}
+        bodyData={data.bodyData}
+        exerciseOptions={data.exerciseOptions}
+        muscleOptions={data.muscleOptions}
+        initialView={data.view}
+        initialKey={data.initialKey}
+        initialSeries={data.initialSeries}
       />
     </Pane>
   );

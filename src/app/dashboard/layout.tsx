@@ -17,7 +17,10 @@ import { RestTimer } from "@/components/workout/rest-timer";
 import { TabPager } from "@/components/dashboard/tab-pager";
 import { DashboardPane } from "@/components/dashboard/panes/dashboard-pane";
 import { WorkoutsPane } from "@/components/dashboard/panes/workouts-pane";
-import { ProgressPane } from "@/components/dashboard/panes/progress-pane";
+import {
+  loadProgressPane,
+  ProgressPane,
+} from "@/components/dashboard/panes/progress-pane";
 import { TemplatesPane } from "@/components/dashboard/panes/templates-pane";
 import { ExercisesPane } from "@/components/dashboard/panes/exercises-pane";
 
@@ -42,14 +45,16 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
   const unit = user.weightUnit;
 
-  const [active, dashboard, workouts, templates, catalog, custom] = await Promise.all([
-    getActiveWorkout(user.id),
-    getDashboardData(user.id, unit),
-    getWorkoutHistory(user.id),
-    getTemplates(user.id),
-    getExerciseCatalog(user.id),
-    getCustomExercises(user.id),
-  ]);
+  const [active, dashboard, workouts, templates, catalog, custom, progress] =
+    await Promise.all([
+      getActiveWorkout(user.id),
+      getDashboardData(user.id, unit),
+      getWorkoutHistory(user.id),
+      getTemplates(user.id),
+      getExerciseCatalog(user.id),
+      getCustomExercises(user.id),
+      loadProgressPane(user.id, unit),
+    ]);
 
   const assistantEnabled = !!env.ANTHROPIC_API_KEY;
   const globals = catalog
@@ -76,10 +81,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     <WorkoutsPane key="workouts" workouts={workouts} />,
     <ProgressPane
       key="progress"
-      userId={user.id}
       unit={unit}
       heightCm={user.heightCm}
       birthday={user.birthday}
+      data={progress}
     />,
     <TemplatesPane
       key="templates"

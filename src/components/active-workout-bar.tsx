@@ -19,7 +19,7 @@ export async function ActiveWorkoutBar() {
     <ActiveWorkoutBarShell href={href}>
       <Link
         href={href}
-        className="bg-primary/10 text-primary hover:bg-primary/15 flex items-center justify-center gap-1 py-1.5 text-sm font-medium transition-colors"
+        className="bg-primary/10 text-primary hover:bg-primary/15 active:bg-primary/20 flex items-center justify-center gap-1 py-1.5 text-sm font-medium transition-colors active:duration-0"
       >
         <Dot className="size-5 animate-pulse" />
         {active.name ?? "Workout"} in progress — Resume
