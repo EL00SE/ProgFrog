@@ -45,11 +45,11 @@ export function WorkoutsPane({ workouts }: { workouts: WorkoutSummary[] }) {
               <Link
                 key={w.id}
                 href={`/dashboard/workouts/${w.id}`}
-                className="group focus-visible:ring-ring/50 rounded-xl outline-none focus-visible:ring-3"
+                className="group focus-visible:ring-ring/50 rounded-xl transition-transform duration-200 ease-out outline-none focus-visible:ring-3 data-pressed:scale-[0.98]"
               >
                 <Card
                   size="sm"
-                  className="group-hover:ring-primary/30 h-full transition-shadow [contain-intrinsic-size:auto_7rem] [content-visibility:auto]"
+                  className="group-hover:ring-primary/30 group-data-pressed:ring-primary/40 group-data-pressed:bg-muted/50 h-full transition-[box-shadow,background-color] [contain-intrinsic-size:auto_7rem] [content-visibility:auto] group-data-pressed:duration-0"
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">

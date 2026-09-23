@@ -51,9 +51,12 @@ export function TemplatesPane({
               <Link
                 key={t.id}
                 href={`/dashboard/templates/${t.id}`}
-                className="group focus-visible:ring-ring/50 rounded-xl outline-none focus-visible:ring-3"
+                className="group focus-visible:ring-ring/50 rounded-xl transition-transform duration-200 ease-out outline-none focus-visible:ring-3 data-pressed:scale-[0.98]"
               >
-                <Card size="sm" className="group-hover:ring-primary/30 transition-shadow">
+                <Card
+                  size="sm"
+                  className="group-hover:ring-primary/30 group-data-pressed:ring-primary/40 group-data-pressed:bg-muted/50 transition-[box-shadow,background-color] group-data-pressed:duration-0"
+                >
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between gap-2">
                       <span className="truncate">{t.name}</span>

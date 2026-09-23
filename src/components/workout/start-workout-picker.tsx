@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Dumbbell, Play, Sparkles } from "lucide-react";
+import { ChevronDown, Dumbbell, Loader2, Play, Sparkles } from "lucide-react";
 
+import { thud } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 import { createWorkout, startWorkoutFromTemplateDay } from "@/lib/actions/workouts";
 import { Badge } from "@/components/ui/badge";
@@ -22,14 +23,18 @@ type Template = { id: string; name: string; days: TemplateDay[] };
 
 export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
   const [pending, startTransition] = React.useTransition();
+  // What's starting — "freestyle" or a template day id — so that one shows it's working.
+  const [startingId, setStartingId] = React.useState<string | null>(null);
   const [openId, setOpenId] = React.useState<string | null>(templates[0]?.id ?? null);
   const [name, setName] = React.useState("");
   // A fast double-tap can fire two starts before `pending` flips and disables
   // the button — creating two workouts, one of which lingers as a phantom.
   const starting = React.useRef(false);
-  function guardStart(run: () => void) {
+  function guardStart(id: string, run: () => void) {
     if (starting.current || pending) return;
     starting.current = true;
+    thud();
+    setStartingId(id);
     window.setTimeout(() => {
       starting.current = false;
     }, 2500);
@@ -39,7 +44,7 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
   function startFreestyle() {
     const fd = new FormData();
     if (name.trim()) fd.set("name", name.trim());
-    guardStart(() => startTransition(() => createWorkout(fd)));
+    guardStart("freestyle", () => startTransition(() => createWorkout(fd)));
   }
 
   return (
@@ -67,7 +72,11 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
               onChange={(e) => setName(e.target.value)}
             />
           </div>
-          <Button onClick={startFreestyle} disabled={pending}>
+          <Button
+            onClick={startFreestyle}
+            disabled={pending}
+            pending={pending && startingId === "freestyle"}
+          >
             <Play className="size-4" /> Start freestyle
           </Button>
         </CardContent>
@@ -85,7 +94,7 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
                 <button
                   type="button"
                   onClick={() => setOpenId(open ? null : t.id)}
-                  className="flex w-full items-center justify-between gap-2 px-(--card-spacing) text-left"
+                  className="flex w-full items-center justify-between gap-2 px-(--card-spacing) text-left transition-opacity duration-150 data-pressed:opacity-60"
                 >
                   <CardTitle className="flex items-center gap-2">
                     <Dumbbell className="text-muted-foreground size-4" />
@@ -106,16 +115,27 @@ export function StartWorkoutPicker({ templates }: { templates: Template[] }) {
                         type="button"
                         disabled={pending || d.slots === 0}
                         onClick={() =>
-                          guardStart(() =>
+                          guardStart(d.id, () =>
                             startTransition(() => startWorkoutFromTemplateDay(d.id)),
                           )
                         }
-                        className="hover:bg-accent flex items-center justify-between gap-2 rounded-lg border p-3 text-left text-sm transition-colors disabled:opacity-50"
+                        className={cn(
+                          "hover:bg-accent data-pressed:bg-accent flex items-center justify-between gap-2 rounded-lg border p-3 text-left text-sm transition-[background-color,scale,opacity] duration-150 data-pressed:scale-[0.98]",
+                          pending && startingId === d.id
+                            ? "border-primary/40 bg-primary/5"
+                            : "disabled:opacity-50",
+                        )}
                       >
                         <span className="font-medium">{d.name}</span>
-                        <Badge variant="secondary">
-                          {d.slots} {d.slots === 1 ? "slot" : "slots"}
-                        </Badge>
+                        {pending && startingId === d.id ? (
+                          <span className="text-primary flex items-center gap-1.5 text-xs font-medium">
+                            <Loader2 className="size-3.5 animate-spin" /> Starting…
+                          </span>
+                        ) : (
+                          <Badge variant="secondary">
+                            {d.slots} {d.slots === 1 ? "slot" : "slots"}
+                          </Badge>
+                        )}
                       </button>
                     ))}
                   </CardContent>

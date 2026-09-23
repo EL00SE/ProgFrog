@@ -76,7 +76,7 @@ export function DashboardNav() {
               onClick={(e) => maybeShallow(e, href, pathname)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-[color,background-color,scale] duration-150 data-pressed:scale-[0.96]",
                 active
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted",
@@ -113,13 +113,13 @@ export function DashboardTabBar() {
               onClick={(e) => maybeShallow(e, href, pathname)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "text-muted-foreground hover:text-foreground flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[0.7rem] leading-none font-medium transition-colors",
+                "group/tab text-muted-foreground hover:text-foreground flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[0.7rem] leading-none font-medium transition-colors select-none [-webkit-touch-callout:none]",
                 active && "text-primary",
               )}
             >
               <span
                 className={cn(
-                  "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                  "group-data-pressed/tab:bg-primary/10 flex h-7 w-12 items-center justify-center rounded-full transition-[background-color,scale] duration-200 ease-out group-data-pressed/tab:scale-90 group-data-pressed/tab:duration-0",
                   active && "bg-primary/10",
                 )}
               >

@@ -21,6 +21,7 @@ import {
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import { deleteWorkout, reopenWorkout, updateWorkout } from "@/lib/actions/workouts";
+import { thud } from "@/lib/haptics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,7 +106,7 @@ function SessionTimes({ workout }: { workout: FullWorkout }) {
             />
           </label>
           <div className="flex gap-2">
-            <Button size="sm" onClick={save} disabled={pending}>
+            <Button size="sm" onClick={save} pending={pending}>
               <Check className="size-4" /> Save
             </Button>
             <Button
@@ -173,7 +174,11 @@ export function FinishedWorkoutView({
   dateLabel: string;
   templates: { id: string; name: string; days: { id: string; name: string }[] }[];
 }) {
+  // Renaming saves in the background and blocks nothing; "Edit" and "Delete"
+  // leave the page, so they lock the rest while they run.
+  const [, startRename] = React.useTransition();
   const [pending, startTransition] = React.useTransition();
+  const [leavingAs, setLeavingAs] = React.useState<"edit" | "delete" | null>(null);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
   const unit = workout.unit;
 
@@ -202,7 +207,7 @@ export function FinishedWorkoutView({
               onBlur={(e) => {
                 const next = e.target.value.trim();
                 if (next === (workout.name ?? "").trim()) return;
-                startTransition(async () => {
+                startRename(async () => {
                   try {
                     await updateWorkout({ workoutId: workout.id, name: next || null });
                   } catch {
@@ -246,7 +251,11 @@ export function FinishedWorkoutView({
             variant="outline"
             size="sm"
             disabled={pending}
-            onClick={() => startTransition(() => reopenWorkout(workout.id))}
+            pending={pending && leavingAs === "edit"}
+            onClick={() => {
+              setLeavingAs("edit");
+              startTransition(() => reopenWorkout(workout.id));
+            }}
           >
             <Pencil className="size-4" /> Edit
           </Button>
@@ -254,8 +263,11 @@ export function FinishedWorkoutView({
             variant="destructive"
             size="sm"
             disabled={pending}
+            pending={pending && leavingAs === "delete"}
             onClick={() => {
               if (confirm("Delete this workout permanently?")) {
+                thud();
+                setLeavingAs("delete");
                 startTransition(() => deleteWorkout(workout.id));
               }
             }}

@@ -116,11 +116,11 @@ export function DashboardPane({
                 <Link
                   key={w.id}
                   href={`/dashboard/workouts/${w.id}`}
-                  className="group focus-visible:ring-ring/50 rounded-xl outline-none focus-visible:ring-3"
+                  className="group focus-visible:ring-ring/50 rounded-xl transition-transform duration-200 ease-out outline-none focus-visible:ring-3 data-pressed:scale-[0.98]"
                 >
                   <Card
                     size="sm"
-                    className="group-hover:ring-primary/40 h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-black/5"
+                    className="group-hover:ring-primary/40 group-data-pressed:ring-primary/40 group-data-pressed:bg-muted/50 h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-black/5 group-data-pressed:duration-0"
                   >
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">

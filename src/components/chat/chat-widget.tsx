@@ -89,7 +89,7 @@ export function ChatWidget({ consented: initialConsent }: { consented: boolean }
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open training assistant"
-          className="bg-primary text-primary-foreground hover:bg-primary/92 fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95 md:bottom-6"
+          className="bg-primary text-primary-foreground hover:bg-primary/92 fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] left-4 z-40 flex size-12 items-center justify-center rounded-full shadow-lg transition-transform duration-200 ease-out active:scale-95 data-pressed:scale-90 md:bottom-6"
         >
           <MessageCircle className="size-5" />
         </button>

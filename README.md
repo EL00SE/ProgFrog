@@ -217,6 +217,11 @@ public/
 - **Mobile & a11y** — a global reduced-motion / contrast safety net lives in
   `globals.css`; response security headers (CSP, HSTS, frame-ancestors) are set
   in `next.config.ts`.
+- **Tap feel** — `press-feedback.tsx` marks whatever's under a finger with
+  `data-pressed` (style with Tailwind's `data-pressed:` variant): a quick tap
+  still shows, a scroll or swipe cancels it. `lib/haptics.ts` buzzes on Android
+  and ticks on iPhone (iOS 18+ plays a haptic when a switch checkbox toggles);
+  `lib/motion.ts` holds the shared fade-in / fade-out for added and removed rows.
 
 ## Deploy
 

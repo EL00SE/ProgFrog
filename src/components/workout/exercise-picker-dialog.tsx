@@ -296,7 +296,7 @@ export function ExercisePickerDialog({
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="hover:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium"
+              className="hover:bg-accent data-pressed:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-medium transition-colors duration-150"
             >
               <Plus className="size-4" />
               Create &ldquo;{query.trim()}&rdquo;
@@ -398,7 +398,7 @@ function ExerciseRow({
     <button
       type="button"
       onClick={onPick}
-      className="hover:bg-accent flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm"
+      className="hover:bg-accent data-pressed:bg-accent flex min-h-11 w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors duration-150"
     >
       <span className="min-w-0">
         <span className="block truncate">{e.name}</span>

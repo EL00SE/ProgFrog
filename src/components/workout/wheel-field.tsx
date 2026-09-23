@@ -4,6 +4,7 @@ import * as React from "react";
 import { Minus, Plus } from "lucide-react";
 
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { tick } from "@/lib/haptics";
 import { type WeightUnit } from "@/lib/training";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -60,12 +61,16 @@ export function WheelField({
 
   const nudge = (dir: -1 | 1) => {
     const next = Math.max(0, Math.round((value + dir * step) * 100) / 100);
-    if (next !== value) onPick(next);
+    if (next === value) return;
+    tick();
+    onPick(next);
   };
 
   const stepperClass = cn(
     "border-input text-muted-foreground hover:bg-muted hover:text-foreground",
-    "flex h-11 w-7 shrink-0 items-center justify-center rounded-md border",
+    "flex h-11 w-7 shrink-0 items-center justify-center rounded-md border select-none",
+    "transition-[scale,background-color,color] duration-150 ease-out",
+    "data-pressed:bg-primary/15 data-pressed:text-primary data-pressed:scale-90",
     "disabled:pointer-events-none disabled:opacity-40",
   );
 
@@ -95,6 +100,7 @@ export function WheelField({
               onChange={(e) => onPick(Number(e.target.value))}
               className={cn(
                 "border-input dark:bg-input/30 h-11 min-w-0 flex-1 appearance-none rounded-md border bg-transparent px-1 text-center text-base tabular-nums outline-none",
+                "data-pressed:bg-muted transition-[scale,background-color] duration-150 ease-out data-pressed:scale-[0.96]",
                 "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
                 "disabled:opacity-50",
               )}

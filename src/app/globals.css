@@ -136,6 +136,27 @@
   }
   html {
     @apply font-sans;
+    /* iOS paints a grey box over whatever you tap; every control here has its
+     * own pressed state instead (see press-feedback.tsx). */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* No double-tap-to-zoom on controls: iOS otherwise holds a tap back to see
+   * if a second one follows, and two quick taps on a stepper zoom the page
+   * instead of counting twice. Pinch zoom still works. */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+  /* Pressing is instant; letting go eases back over the element's own
+   * transition — so even a quick tap visibly lands. */
+  [data-pressed] {
+    transition-duration: 0s !important;
   }
 }
 

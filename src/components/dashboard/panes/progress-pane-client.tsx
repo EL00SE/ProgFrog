@@ -141,7 +141,7 @@ export function ProgressPaneClient({
             type="button"
             onClick={() => onSection(v)}
             className={cn(
-              "rounded-md px-3 py-1.5 transition-colors",
+              "rounded-md px-3 py-1.5 transition-[color,background-color,scale] duration-150 data-pressed:scale-95",
               section === v
                 ? "bg-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground",

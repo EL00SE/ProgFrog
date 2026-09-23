@@ -44,7 +44,8 @@ import {
 } from "@/lib/training";
 import type { FullWorkout } from "@/lib/queries/workouts";
 import { deleteWorkout, finishWorkout } from "@/lib/actions/workouts";
-import { haptic } from "@/lib/haptics";
+import { haptic, thud, tick } from "@/lib/haptics";
+import { enterRowCls, exitCls, exitDelay } from "@/lib/motion";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { outbox, useOutboxStatus } from "@/lib/offline-queue";
 import { cn } from "@/lib/utils";
@@ -317,6 +318,8 @@ export function WorkoutLogger({
   );
   const [busy, startTransition] = React.useTransition();
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
+  // Which close is in flight, so only that button shows it's working.
+  const [closingAs, setClosingAs] = React.useState<"finish" | "discard" | null>(null);
   // Id of the exercise just added — scroll it into view and flash it briefly.
   const [newWeId, setNewWeId] = React.useState<string | null>(null);
   // Set once the workout is being finished/discarded, so the debounced snapshot
@@ -398,6 +401,7 @@ export function WorkoutLogger({
   }
 
   function handlePick(exerciseId: string, exercise?: PickerExercise) {
+    thud();
     const tempId = tmpWeId();
     setExercises((list) => [...list, optimisticWE(tempId, list.length, { exercise })]);
     setNewWeId(tempId);
@@ -405,6 +409,7 @@ export function WorkoutLogger({
   }
 
   function handleAddSlot(slot: { muscle: string }) {
+    thud();
     const tempId = tmpWeId();
     setExercises((list) => [
       ...list,
@@ -452,6 +457,7 @@ export function WorkoutLogger({
   ) {
     const we = exercises.find((e) => e.id === weId);
     if (!we) return;
+    thud();
     const type = opts?.type ?? "NORMAL";
     const seed = seedSet(we, type, prev);
     const tempId = tmpSetId();
@@ -530,6 +536,7 @@ export function WorkoutLogger({
     closing.current = true;
     if (online && syncPending === 0) {
       clearSnapshot(workout.id);
+      setClosingAs("finish");
       startTransition(() => finishWorkout(workout.id));
       return;
     }
@@ -552,6 +559,8 @@ export function WorkoutLogger({
     }
     closing.current = true;
     clearSnapshot(workout.id);
+    thud();
+    setClosingAs("discard");
     startTransition(() => deleteWorkout(workout.id));
   }
 
@@ -724,6 +733,7 @@ export function WorkoutLogger({
         <Button
           onClick={handleFinish}
           disabled={pending}
+          pending={pending && closingAs === "finish"}
           size="lg"
           className="w-full sm:w-auto sm:self-stretch"
         >
@@ -734,6 +744,7 @@ export function WorkoutLogger({
           size="sm"
           onClick={() => setConfirmDiscard(true)}
           disabled={pending}
+          pending={pending && closingAs === "discard"}
           className="text-muted-foreground hover:text-destructive"
         >
           Discard workout
@@ -856,6 +867,14 @@ function ExerciseCard({
   // Exercises already finished when the logger loaded start collapsed; ones you
   // complete during the session stay open until you collapse them by hand.
   const [collapsed, setCollapsed] = React.useState(done && !inGroup);
+  // Removing plays a short fade-out before the card is actually dropped.
+  const [leaving, setLeaving] = React.useState(false);
+  function remove() {
+    if (leaving) return;
+    thud();
+    setLeaving(true);
+    window.setTimeout(onRemove, exitDelay());
+  }
 
   if (collapsed && we.exercise) {
     return (
@@ -868,7 +887,7 @@ function ExerciseCard({
           <button
             type="button"
             onClick={() => setCollapsed(false)}
-            className="flex w-full items-center gap-2 text-left"
+            className="flex w-full items-center gap-2 text-left transition-opacity duration-150 data-pressed:opacity-60"
             aria-label={`Expand ${we.exercise.name}`}
           >
             <span className="bg-primary text-primary-foreground flex size-5 shrink-0 items-center justify-center rounded-full">
@@ -895,7 +914,9 @@ function ExerciseCard({
         inGroup && "shadow-none",
         done && "opacity-80",
         flash &&
+          !leaving &&
           "progfrog-flash motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-300",
+        leaving && exitCls,
       )}
     >
       <CardHeader className="gap-2">
@@ -905,7 +926,7 @@ function ExerciseCard({
               <button
                 type="button"
                 onClick={() => setCollapsed(true)}
-                className="flex items-center gap-2 text-left"
+                className="flex items-center gap-2 text-left transition-opacity duration-150 data-pressed:opacity-60"
                 aria-label={`Collapse ${we.exercise.name}`}
               >
                 <span className="bg-primary text-primary-foreground flex size-5 shrink-0 items-center justify-center rounded-full">
@@ -964,7 +985,7 @@ function ExerciseCard({
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={onRemove}
+              onClick={remove}
               disabled={disabled}
               aria-label="Remove"
             >
@@ -1087,6 +1108,9 @@ function ExerciseCard({
                   defaultReps={we.targetReps}
                   timed={timed}
                   disabled={disabled}
+                  // Only a just-added set still has its local id — rows that
+                  // loaded with the page (or swapped to a real id) don't replay.
+                  enter={s.id.startsWith("local_s_")}
                   onPatch={(patch) => onPatchSet(s.id, patch)}
                   onSave={(patch) => onSaveSet(s.id, patch)}
                   onDelete={() => onDeleteSet(s.id)}
@@ -1158,18 +1182,13 @@ function SetTypeField({
   if (isMobile) {
     return (
       <div className={cn("relative h-11 w-full", tone)}>
-        <div
-          aria-hidden
-          className="border-input bg-muted/40 flex h-full w-full items-center justify-center gap-0.5 rounded-md border px-1 text-sm font-semibold tabular-nums shadow-xs"
-        >
-          {token}
-          <ChevronDown className="size-3 opacity-40" />
-        </div>
+        {/* The invisible native select takes the tap; the chip after it
+            mirrors its pressed state. */}
         <select
           value={value}
           aria-label={label}
           onChange={(e) => onChange(e.target.value as SetChoice)}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          className="peer absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
         >
           {SET_CHOICES.map((c) => (
             <option key={c.key} value={c.key}>
@@ -1177,6 +1196,13 @@ function SetTypeField({
             </option>
           ))}
         </select>
+        <div
+          aria-hidden
+          className="border-input bg-muted/40 peer-data-pressed:bg-muted pointer-events-none flex h-full w-full items-center justify-center gap-0.5 rounded-md border px-1 text-sm font-semibold tabular-nums shadow-xs transition-[scale,background-color] duration-150 ease-out peer-data-pressed:scale-95 peer-data-pressed:duration-0"
+        >
+          {token}
+          <ChevronDown className="size-3 opacity-40" />
+        </div>
       </div>
     );
   }
@@ -1217,7 +1243,8 @@ const SetRow = React.memo(SetRowImpl, (a, b) => {
     a.unit === b.unit &&
     a.defaultReps === b.defaultReps &&
     a.timed === b.timed &&
-    a.disabled === b.disabled
+    a.disabled === b.disabled &&
+    a.enter === b.enter
   );
 });
 
@@ -1228,6 +1255,7 @@ function SetRowImpl({
   defaultReps,
   timed,
   disabled,
+  enter,
   onPatch,
   onSave,
   onDelete,
@@ -1238,12 +1266,22 @@ function SetRowImpl({
   defaultReps: string | null;
   timed: boolean;
   disabled: boolean;
+  /** Just added — fades in rather than popping in. */
+  enter: boolean;
   onPatch: (patch: Partial<SetEntry>) => void;
   onSave: (patch: Partial<SetEntry>) => void;
   onDelete: () => void;
 }) {
   const pending = React.useRef<Partial<SetEntry>>({});
   const timer = React.useRef<number | undefined>(undefined);
+  // Deleting plays a short fade-out before the row is actually removed.
+  const [leaving, setLeaving] = React.useState(false);
+  function remove() {
+    if (leaving) return;
+    thud();
+    setLeaving(true);
+    window.setTimeout(onDelete, exitDelay());
+  }
 
   // Only touch shared state once typing settles — so the volume / est-max /
   // progress readouts don't jitter on every keystroke.
@@ -1292,7 +1330,13 @@ function SetRowImpl({
     );
 
   return (
-    <div className="grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2">
+    <div
+      className={cn(
+        "grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2",
+        enter && !leaving && enterRowCls,
+        leaving && exitCls,
+      )}
+    >
       <SetTypeField
         value={setChoiceOf(set)}
         token={token}
@@ -1305,6 +1349,7 @@ function SetRowImpl({
         onChange={(key) => {
           const c = SET_CHOICES.find((x) => x.key === key)!;
           const patch = { type: c.type, toFailure: c.toFailure };
+          tick();
           onPatch(patch);
           onSave(patch);
         }}
@@ -1341,7 +1386,7 @@ function SetRowImpl({
         variant="ghost"
         size="icon-xs"
         className="text-muted-foreground/85 justify-self-center"
-        onClick={onDelete}
+        onClick={remove}
         disabled={disabled}
         aria-label="Delete set"
       >
