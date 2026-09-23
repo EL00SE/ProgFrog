@@ -206,6 +206,11 @@ public/
   snaps with `history.pushState` — no navigation, no re-render, scroll position
   kept per tab. Detail routes (`/workouts/[id]`, editors) fall through to
   `{children}`. Mutations call `revalidatePath("/dashboard", "layout")`.
+- **Instant navigation** — without Cache Components a dynamic route isn't
+  prefetched unless it has a `loading.tsx`, so every detail route has one
+  (`src/components/route-skeletons.tsx`): a tap swaps the screen at once and
+  the page streams in. `dashboard/loading.tsx` also makes the tab routes
+  prefetchable, so leaving a detail page for a tab is instant.
 - **Optimistic client state** — the logger, template editor, exercise manager
   and body view own their list state and apply edits locally first, then fire a
   server action. See `src/lib/offline-queue.ts` for the offline outbox.
