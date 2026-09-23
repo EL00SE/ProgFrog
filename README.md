@@ -220,5 +220,9 @@ public/
   `APP_URL` (the deployed origin), plus any OAuth pairs / `RESEND_API_KEY` /
   `ANTHROPIC_API_KEY` you're using. Build command stays `pnpm build`; run
   `pnpm db:deploy` on schema changes (it is **not** run automatically on deploy).
+- **Region**: `vercel.json` pins functions to `fra1`, next to the Neon database
+  (`eu-central-1`). Every save / page render makes several sequential queries,
+  so a function on another continent pays the ocean round trip each time — if
+  the database moves, move this with it.
 - **Docker**: `docker build -t progfrog .` then run with `DATABASE_URL` +
   `AUTH_SECRET` injected.
