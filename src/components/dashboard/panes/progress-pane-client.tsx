@@ -9,6 +9,7 @@ import { getProgressSeries } from "@/lib/actions/progress";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { BodyView } from "@/components/progress/body-view";
+import { ExportButton } from "@/components/progress/export-button";
 import {
   type ProgressLens,
   type ProgressOption,
@@ -49,6 +50,8 @@ export function ProgressPaneClient({
   const [loading, startLoad] = React.useTransition();
 
   const chartsReady = usePaneVisited(PROGRESS_PANE_INDEX);
+  // Anything logged at all — otherwise there's nothing to export.
+  const hasHistory = exerciseOptions.length > 0 || muscleOptions.length > 0;
   const optionsFor = (v: ProgressLens) =>
     v === "muscle" ? muscleOptions : exerciseOptions;
 
@@ -127,7 +130,9 @@ export function ProgressPaneClient({
             ? "Track your body weight over time, next to your lifts."
             : `How your strength is trending — estimated 1-rep max, heaviest set, and total weight lifted per workout, in ${unit.toLowerCase()}.`
         }
-      />
+      >
+        {hasHistory ? <ExportButton /> : null}
+      </PageHeader>
 
       <div className="bg-muted/60 inline-flex w-fit gap-1 rounded-lg p-1 text-sm font-medium">
         {(

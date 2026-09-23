@@ -5,9 +5,11 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   convertWeight,
+  isCountedSet,
   isWorkingSet,
   localDateKey,
   MUSCLE_GROUPS,
+  muscleOf,
   type SetLike,
   slotLabel,
   startOfWeek,
@@ -64,6 +66,11 @@ const finishedWorkouts = cache((userId: string) =>
     include: workoutInclude,
   }),
 );
+
+/** Every finished workout, oldest first, with its exercises and sets. */
+export async function getFinishedWorkouts(userId: string) {
+  return [...(await finishedWorkouts(userId))].reverse();
+}
 
 export async function getWorkoutHistory(userId: string) {
   const workouts = await finishedWorkouts(userId);
@@ -261,12 +268,8 @@ export function weeklyMuscleSets(
     // counts the workout once however many exercises targeted the muscle.
     const thisSession = new Map<string, number>();
     for (const we of w.exercises) {
-      const muscle = we.muscle ?? we.exercise?.muscle ?? "Other";
-      let n = 0;
-      for (const s of we.sets) {
-        if (s.type === "WARMUP") continue;
-        if (s.reps > 0 || (s.seconds ?? 0) > 0) n += 1;
-      }
+      const muscle = muscleOf(we);
+      const n = we.sets.filter(isCountedSet).length;
       if (n > 0) thisSession.set(muscle, (thisSession.get(muscle) ?? 0) + n);
     }
     for (const [muscle, n] of thisSession) {

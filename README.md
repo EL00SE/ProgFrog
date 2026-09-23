@@ -20,6 +20,11 @@ with offline logging so a dead signal in the weights room never costs you a set.
   per muscle group across the last twelve training weeks, with a true weekly rate
   (sets ÷ the elapsed block, so a 6- or 8-day split still reads right) and a
   per-session figure.
+- **Export to Excel** — Progress → "Export to Excel" downloads your whole
+  history as a workbook: working sets per muscle group per week (a heatmap, as
+  COUNTIFS formulas over the raw data), one row per workout, and every set
+  (`/api/export`, built in `src/lib/export/`). On a phone it opens the share
+  sheet — Save to Files, open in Excel, AirDrop.
 - **Offline-first** — a service worker precaches the active workout; mutations
   queue in a localStorage outbox and replay on reconnect, with idempotency keys
   so a crash-replay never double-writes.

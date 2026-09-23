@@ -85,6 +85,27 @@ export function isWorkingSet(s: { type?: SetType | null }): boolean {
   return s.type !== "WARMUP";
 }
 
+/**
+ * Whether a set counts toward "sets per muscle group": a working set that was
+ * actually done (reps, or a hold time). Shared by the dashboard grid and the
+ * spreadsheet export so their numbers always agree.
+ */
+export function isCountedSet(s: {
+  type?: SetType | string | null;
+  reps: number;
+  seconds?: number | null;
+}): boolean {
+  return s.type !== "WARMUP" && (s.reps > 0 || (s.seconds ?? 0) > 0);
+}
+
+/** The muscle group a logged exercise counts toward. */
+export function muscleOf(we: {
+  muscle: string | null;
+  exercise: { muscle: string | null } | null;
+}): string {
+  return we.muscle ?? we.exercise?.muscle ?? "Other";
+}
+
 export type SetLike = {
   reps: number;
   weight: number;
