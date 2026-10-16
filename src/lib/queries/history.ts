@@ -15,7 +15,18 @@ export type PrevSet = {
   type: SetType;
   toFailure: boolean;
 };
-export type ExercisePrev = { date: string; equipment: string; sets: PrevSet[] };
+/** One past session of an exercise: when, and what was done. */
+export type PrevSession = { date: string; sets: PrevSet[] };
+
+/**
+ * The most recent session of an exercise (`equipment` is what it was done
+ * with), plus the most recent session per equipment — a dumbbell set isn't
+ * comparable to a barbell one, so the logger looks up the equipment on the card.
+ */
+export type ExercisePrev = PrevSession & {
+  equipment: string;
+  byEquipment: Record<string, PrevSession>;
+};
 
 /**
  * The last time the user did each exercise (finished workouts only), keyed by
@@ -46,7 +57,10 @@ export async function getExercisePrev(
 
   const out: Record<string, ExercisePrev> = {};
   for (const we of rows) {
-    if (!we.exerciseId || out[we.exerciseId]) continue; // first row = most recent
+    if (!we.exerciseId) continue;
+    const equipment = we.equipment ?? we.exercise?.equipment ?? "OTHER";
+    // Rows run newest first, so the first seen per equipment is its latest.
+    if (out[we.exerciseId]?.byEquipment[equipment]) continue;
     const sets = we.sets
       .filter((s) => s.reps > 0 || (s.seconds ?? 0) > 0)
       .map((s) => ({
@@ -57,11 +71,9 @@ export async function getExercisePrev(
         toFailure: s.toFailure,
       }));
     if (sets.length === 0) continue;
-    out[we.exerciseId] = {
-      date: localDateKey(we.workout.date),
-      equipment: we.equipment ?? we.exercise?.equipment ?? "OTHER",
-      sets,
-    };
+    const session = { date: localDateKey(we.workout.date), sets };
+    const entry = (out[we.exerciseId] ??= { ...session, equipment, byEquipment: {} });
+    entry.byEquipment[equipment] = session;
   }
   return out;
 }

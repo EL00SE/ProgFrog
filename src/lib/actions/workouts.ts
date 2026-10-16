@@ -534,7 +534,11 @@ export async function addSet(
 
   const we = await prisma.workoutExercise.findFirst({
     where: { id: workoutExerciseId, workout: { userId } },
-    select: { exerciseId: true },
+    select: {
+      exerciseId: true,
+      equipment: true,
+      exercise: { select: { equipment: true } },
+    },
   });
   if (!we) throw new Error("Exercise not found");
 
@@ -549,7 +553,7 @@ export async function addSet(
   let seedWeight = last?.weight ?? 0;
   let seedReps = last?.reps ?? 0;
   if (!last && we.exerciseId) {
-    const prevSet = await prisma.setEntry.findFirst({
+    const recent = await prisma.setEntry.findMany({
       where: {
         type: { not: "WARMUP" },
         reps: { gt: 0 },
@@ -559,10 +563,28 @@ export async function addSet(
         },
       },
       orderBy: [{ workoutExercise: { workout: { date: "desc" } } }, { order: "desc" }],
+      take: 60,
+      include: {
+        workoutExercise: {
+          select: { equipment: true, exercise: { select: { equipment: true } } },
+        },
+      },
     });
-    if (prevSet) {
-      seedWeight = prevSet.weight;
-      seedReps = prevSet.reps;
+    // The load only carries over from the same equipment — 15 kg on a barbell
+    // says nothing about a pair of dumbbells. A first time with this equipment
+    // still borrows the rep count, but starts the weight at zero.
+    const now = we.equipment ?? we.exercise?.equipment ?? "OTHER";
+    const sameKit = recent.find(
+      (s) =>
+        (s.workoutExercise.equipment ??
+          s.workoutExercise.exercise?.equipment ??
+          "OTHER") === now,
+    );
+    if (sameKit) {
+      seedWeight = sameKit.weight;
+      seedReps = sameKit.reps;
+    } else if (recent[0]) {
+      seedReps = recent[0].reps;
     }
   }
 

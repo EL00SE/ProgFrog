@@ -84,6 +84,26 @@ type PrevMap = Record<string, ExercisePrev>;
 
 type PrevGroup = PrevSet & { count: number };
 
+/** The equipment a card is set to — the same fallback its dropdown shows. */
+const equipmentOf = (we: WE) => we.equipment ?? we.exercise?.equipment ?? "BARBELL";
+
+/**
+ * Last time to compare against: the latest session with the equipment now on
+ * the card. If it's never been done that way, falls back to the latest session
+ * with anything (`sameEquipment: false`) so there's still a reference — but
+ * the weights on it are for different kit, and the recap says so.
+ */
+function lastTimeFor(we: WE, prev: PrevMap) {
+  const p = we.exercise ? prev[we.exercise.id] : undefined;
+  if (!p) return undefined;
+  const equipment = equipmentOf(we);
+  const same = p.byEquipment[equipment];
+  return same
+    ? { date: same.date, sets: same.sets, equipment, sameEquipment: true }
+    : { date: p.date, sets: p.sets, equipment: p.equipment, sameEquipment: false };
+}
+type LastTime = NonNullable<ReturnType<typeof lastTimeFor>>;
+
 /** Fold runs of identical sets into one "×N" group so the recap stays short. */
 function groupPrevSets(sets: PrevSet[]): PrevGroup[] {
   const out: PrevGroup[] = [];
@@ -117,10 +137,13 @@ function PrevLine({
   prev,
   unit,
   timed,
+  current,
 }: {
-  prev: ExercisePrev;
+  prev: LastTime;
   unit: "KG" | "LB";
   timed: boolean;
+  /** The equipment on the card right now. */
+  current: string;
 }) {
   const u = unit.toLowerCase();
   const groups = groupPrevSets(prev.sets);
@@ -128,10 +151,25 @@ function PrevLine({
   const more = prev.sets.length - shown.reduce((n, g) => n + g.count, 0);
   return (
     <div className="bg-muted/40 flex flex-col gap-1.5 rounded-lg px-3 py-2.5">
-      <span className="text-muted-foreground text-[0.7rem] font-semibold tracking-wide uppercase">
-        Last time · {formatDate(prev.date, { month: "short", day: "numeric" })} ·{" "}
-        {EQUIPMENT_LABELS[prev.equipment] ?? prev.equipment}
+      <span className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[0.7rem] font-semibold tracking-wide uppercase">
+        Last time · {formatDate(prev.date, { month: "short", day: "numeric" })} ·
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5",
+            prev.sameEquipment
+              ? "bg-foreground/10 text-foreground"
+              : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+          )}
+        >
+          {EQUIPMENT_LABELS[prev.equipment] ?? prev.equipment}
+        </span>
       </span>
+      {!prev.sameEquipment ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          First time with {EQUIPMENT_LABELS[current] ?? current} — these weights are from{" "}
+          {EQUIPMENT_LABELS[prev.equipment] ?? prev.equipment}.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm tabular-nums">
         {shown.map((g, i) => (
           <span
@@ -291,10 +329,11 @@ function seedSet(we: WE, type: SetType, prev: PrevMap): { weight: number; reps: 
   const last = we.sets.at(-1);
   // Skip a warm-up here — `prev.sets` now includes it (for the recap), but
   // seeding a fresh set from a warm-up's lighter load would be wrong.
-  const fromPrev = we.exercise
-    ? prev[we.exercise.id]?.sets.find((s) => s.type !== "WARMUP")
-    : undefined;
-  let weight = last?.weight ?? fromPrev?.weight ?? 0;
+  const lastTime = lastTimeFor(we, prev);
+  const fromPrev = lastTime?.sets.find((s) => s.type !== "WARMUP");
+  // Weight carries over only from the same equipment (see the server's addSet).
+  const fromPrevWeight = lastTime?.sameEquipment ? fromPrev?.weight : undefined;
+  let weight = last?.weight ?? fromPrevWeight ?? 0;
   const reps = last?.reps ?? fromPrev?.reps ?? 0;
   if (type === "DROP" && weight > 0) {
     weight = Math.max(0, Math.round(weight * 0.8 * 2) / 2);
@@ -652,7 +691,7 @@ export function WorkoutLogger({
           flash: we.id === newWeId,
           catalog,
           prev,
-          prevForExercise: we.exercise ? prev[we.exercise.id] : undefined,
+          prevForExercise: lastTimeFor(we, prev),
           canMoveUp: exercises.findIndex((e) => e.id === we.id) > 0,
           canMoveDown: exercises.findIndex((e) => e.id === we.id) < exercises.length - 1,
           onMoveUp: () => handleMoveExercise(we.id, -1),
@@ -835,7 +874,7 @@ function ExerciseCard({
   flash?: boolean;
   catalog: PickerExercise[];
   prev: PrevMap;
-  prevForExercise?: ExercisePrev;
+  prevForExercise?: LastTime;
   inGroup?: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -1081,7 +1120,12 @@ function ExerciseCard({
       {!unfilled && (
         <CardContent className="flex flex-col gap-1.5">
           {prevForExercise ? (
-            <PrevLine prev={prevForExercise} unit={unit} timed={timed} />
+            <PrevLine
+              prev={prevForExercise}
+              unit={unit}
+              timed={timed}
+              current={equipmentOf(we)}
+            />
           ) : null}
           {we.sets.length > 0 && (
             <div className="text-muted-foreground grid grid-cols-[2.5rem_1fr_1fr_1.5rem] items-center gap-2 px-1 text-xs font-medium">
