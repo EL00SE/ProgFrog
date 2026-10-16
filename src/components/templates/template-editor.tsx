@@ -17,6 +17,9 @@ import {
   X,
 } from "lucide-react";
 
+import { useKeyboardAvoidance } from "@/hooks/use-keyboard-avoidance";
+import { thud, tick } from "@/lib/haptics";
+import { exitCls, exitDelay } from "@/lib/motion";
 import {
   EQUIPMENT_LABELS,
   type ExerciseLink,
@@ -36,6 +39,7 @@ import {
   addTemplateSet,
   deleteTemplate,
   duplicateTemplateDay,
+  refreshTemplateViews,
   removeTemplateDay,
   removeTemplateExercise,
   removeTemplateSet,
@@ -140,6 +144,30 @@ function useEnterAnimation(ids: string[]) {
   return { isNew, markSeen };
 }
 
+/**
+ * Text fields here save when they lose focus. Tapping a button doesn't do that
+ * on iOS Safari, so anything that leaves the editor calls this first — without
+ * it the field being typed in is dropped along with the page.
+ */
+function commitFocusedField() {
+  (document.activeElement as HTMLElement | null)?.blur();
+}
+
+/**
+ * Play the exit animation, then call `onRemove`. Returns whether the row is on
+ * its way out (style it with `exitCls`) and the handler for its remove button.
+ */
+function useExit(onRemove: () => void) {
+  const [leaving, setLeaving] = React.useState(false);
+  const remove = () => {
+    if (leaving) return;
+    thud();
+    setLeaving(true);
+    window.setTimeout(onRemove, exitDelay());
+  };
+  return [leaving, remove] as const;
+}
+
 const enterCls =
   "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-2 motion-safe:duration-200";
 const enterClsLight =
@@ -210,8 +238,56 @@ export function TemplateEditor({
   // Synchronous latch so a double-tap on "Start workout" can't fire two starts
   // before `adding` flips — that would create (and orphan) a second workout.
   const startingWorkout = React.useRef(false);
+  // Which day's "Start workout" is running, and whether the template is being
+  // deleted — so that button, and only that one, shows it's working.
+  const [startingDay, setStartingDay] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
   const [saving, startSaving] = React.useTransition();
   const [savedAt, setSavedAt] = React.useState<number | null>(null);
+  // Edits save without refreshing the rest of the app (see
+  // refreshTemplateViews). Anything changed here marks the list stale, and it's
+  // refreshed once on the way out.
+  // (Local state only — the refresh itself hands down a new `initial` prop.)
+  const dirty = React.useRef(false);
+  const seenTemplate = React.useRef(template);
+  React.useEffect(() => {
+    if (template === seenTemplate.current) return;
+    seenTemplate.current = template;
+    dirty.current = true;
+  }, [template]);
+
+  // Where "Done" / "Back" is headed. We only go once every save has landed: a
+  // navigation preempts the request in flight, and the edit it carried would
+  // be missing when the list (or this template) is opened again. Then one
+  // refresh, so the list is already up to date when it appears.
+  const [leaveTo, setLeaveTo] = React.useState<string | null>(null);
+  const busy = saving || adding;
+  const leaving = React.useRef(false);
+  React.useEffect(() => {
+    if (!leaveTo || busy || leaving.current) return;
+    leaving.current = true;
+    void (async () => {
+      if (dirty.current) {
+        dirty.current = false;
+        await refreshTemplateViews().catch(() => {});
+      }
+      router.push(leaveTo);
+    })();
+  }, [leaveTo, busy, router]);
+  function leave(href: string) {
+    commitFocusedField();
+    setLeaveTo(href);
+  }
+  // Left some other way (back swipe, a tab) — refresh in the background. Actions
+  // run in order, so this lands after any save still in flight.
+  React.useEffect(
+    () => () => {
+      if (dirty.current) void refreshTemplateViews().catch(() => {});
+    },
+    [],
+  );
+  // Keeps the field being typed in above the on-screen keyboard.
+  const { ref: rootRef, inset: keyboardInset } = useKeyboardAvoidance<HTMLDivElement>();
   // Days start collapsed so a multi-day split is scannable on open.
   const [collapsed, setCollapsed] = React.useState<Set<string>>(
     () => new Set(initial.days.map((d) => d.id)),
@@ -238,6 +314,8 @@ export function TemplateEditor({
           setSavedAt(Date.now());
         } catch {
           toast.error("Couldn't save that change — reloading");
+          setLeaveTo(null);
+          leaving.current = false;
           router.refresh();
         }
       });
@@ -307,6 +385,7 @@ export function TemplateEditor({
 
   // --- days ------------------------------------------------------------
   function addDay() {
+    thud();
     const tempId = tmpId();
     const order = template.days.length;
     const temp: Day = {
@@ -335,6 +414,7 @@ export function TemplateEditor({
   function duplicateDay(sourceId: string) {
     const src = template.days.find((d) => d.id === sourceId);
     if (!src) return;
+    thud();
     const tempId = tmpId();
     const clone: Day = {
       ...src,
@@ -379,6 +459,7 @@ export function TemplateEditor({
     const i = template.days.findIndex((d) => d.id === dayId);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= template.days.length) return;
+    tick();
     const days = [...template.days];
     [days[i], days[j]] = [days[j], days[i]];
     setTemplate((t) => ({ ...t, days }));
@@ -399,6 +480,7 @@ export function TemplateEditor({
     exercise?: PickerExercise,
   ) {
     rememberExercise(exercise);
+    thud();
     const tempId = tmpId();
     const picked =
       exercise ??
@@ -448,6 +530,7 @@ export function TemplateEditor({
     exercise?: PickerExercise,
   ) {
     rememberExercise(exercise);
+    tick();
     const picked =
       exercise ??
       (exerciseId ? (catalog.find((c) => c.id === exerciseId) ?? null) : null);
@@ -483,6 +566,7 @@ export function TemplateEditor({
     const i = day.exercises.findIndex((e) => e.id === slotId);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= day.exercises.length) return;
+    tick();
     const exercises = [...day.exercises];
     [exercises[i], exercises[j]] = [exercises[j], exercises[i]];
     editDay(dayId, (d) => ({ ...d, exercises }));
@@ -495,12 +579,14 @@ export function TemplateEditor({
     persistFor(slotId, (id) => updateTemplateExercise({ id, targetReps }));
   }
   function setLink(slotId: string, linkToNext: ExerciseLink | null) {
+    tick();
     editSlot(slotId, (s) => ({ ...s, linkToNext }));
     persistFor(slotId, (id) => updateTemplateExercise({ id, linkToNext }));
   }
 
   // --- planned sets ---------------------------------------------------
   function addSet(slotId: string) {
+    thud();
     const tempId = tmpId();
     const slot = template.days.flatMap((d) => d.exercises).find((e) => e.id === slotId);
     const last = slot?.sets.at(-1);
@@ -532,6 +618,7 @@ export function TemplateEditor({
   }
   function setSetChoice(setId: string, key: SetChoice) {
     const c = SET_CHOICES.find((x) => x.key === key)!;
+    tick();
     editSet(setId, (s) => ({ ...s, type: c.type, toFailure: c.toFailure }));
     persistFor(setId, (id) =>
       updateTemplateSet({ id, type: c.type, toFailure: c.toFailure }),
@@ -547,16 +634,26 @@ export function TemplateEditor({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div ref={rootRef} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <BackLink href="/dashboard/templates">Templates</BackLink>
+          <BackLink
+            href="/dashboard/templates"
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              leave("/dashboard/templates");
+            }}
+          >
+            Templates
+          </BackLink>
           <div className="flex items-center gap-3">
-            <SaveStatus busy={saving || adding} savedAt={savedAt} />
+            <SaveStatus busy={busy} savedAt={savedAt} />
             <Button
               size="sm"
               variant="outline"
-              onClick={() => router.push("/dashboard/templates")}
+              pending={leaveTo !== null}
+              onClick={() => leave("/dashboard/templates")}
             >
               Done
             </Button>
@@ -588,12 +685,19 @@ export function TemplateEditor({
             isNew={dayIsNew(day.id)}
             catalog={catalog}
             locked={adding}
+            starting={adding && startingDay === day.id}
             onToggle={() => toggleDay(day.id)}
             onRename={(name) => renameDay(day.id, name)}
             onMoveUp={() => moveDay(day.id, -1)}
             onMoveDown={() => moveDay(day.id, 1)}
             onStartWorkout={() => {
               if (adding || startingWorkout.current) return;
+              // Starts from what's saved, so save the field being typed in first
+              // (actions run in order, so the edit lands before the workout is built).
+              commitFocusedField();
+              // The start revalidates everything itself.
+              dirty.current = false;
+              setStartingDay(day.id);
               startingWorkout.current = true;
               window.setTimeout(() => {
                 startingWorkout.current = false;
@@ -624,8 +728,12 @@ export function TemplateEditor({
           variant="destructive"
           size="sm"
           disabled={adding}
+          pending={adding && deleting}
           onClick={() => {
             if (confirm(`Delete template "${template.name}"?`)) {
+              thud();
+              dirty.current = false;
+              setDeleting(true);
               startAdding(() => deleteTemplate(template.id));
             }
           }}
@@ -633,6 +741,9 @@ export function TemplateEditor({
           <Trash2 className="size-4" /> Delete template
         </Button>
       </div>
+
+      {/* Room for the keyboard, so the last fields can scroll clear of it. */}
+      {keyboardInset > 0 ? <div aria-hidden style={{ height: keyboardInset }} /> : null}
     </div>
   );
 }
@@ -647,6 +758,7 @@ function DayCard({
   isNew,
   catalog,
   locked,
+  starting,
   onToggle,
   onRename,
   onMoveUp,
@@ -672,6 +784,7 @@ function DayCard({
   isNew: boolean;
   catalog: PickerExercise[];
   locked: boolean;
+  starting: boolean;
   onToggle: () => void;
   onRename: (name: string) => void;
   onMoveUp: () => void;
@@ -696,13 +809,15 @@ function DayCard({
 }) {
   const { isNew: slotIsNew } = useEnterAnimation(day.exercises.map((e) => e.id));
 
+  const [leaving, remove] = useExit(onRemove);
   return (
     <Card
       data-flip={day.id}
       className={cn(
         "gap-0 py-4 transition-[padding] duration-200 motion-reduce:transition-none",
         !isOpen && "pb-0",
-        isNew && enterCls,
+        isNew && !leaving && enterCls,
+        leaving && exitCls,
       )}
     >
       <CardHeader className="gap-2">
@@ -746,7 +861,7 @@ function DayCard({
               <button
                 type="button"
                 onClick={onToggle}
-                className="truncate text-left text-sm font-medium"
+                className="truncate text-left text-sm font-medium transition-opacity duration-150 data-pressed:opacity-60"
               >
                 {day.name}
                 <span className="text-muted-foreground ml-2 font-normal">
@@ -761,6 +876,7 @@ function DayCard({
               size="sm"
               variant="outline"
               disabled={locked || day.exercises.length === 0}
+              pending={starting}
               onClick={onStartWorkout}
             >
               <Play className="size-4" /> Start workout
@@ -780,7 +896,7 @@ function DayCard({
               variant="ghost"
               disabled={daysCount === 1}
               aria-label="Remove day"
-              onClick={onRemove}
+              onClick={remove}
             >
               <Trash2 className="size-4" />
             </Button>
@@ -935,13 +1051,15 @@ function SlotRow({
 }) {
   const link = te.linkToNext as ExerciseLink | null;
   const { isNew: setIsNew } = useEnterAnimation(te.sets.map((s) => s.id));
+  const [leaving, remove] = useExit(onRemove);
   return (
     <div
       data-flip={flipKey}
       className={cn(
         "flex flex-col gap-2 rounded-lg border p-2",
         link && "border-l-primary/60 border-l-4",
-        enter && enterClsLight,
+        enter && !leaving && enterClsLight,
+        leaving && exitCls,
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -994,7 +1112,7 @@ function SlotRow({
           variant="ghost"
           aria-label="Remove slot"
           disabled={locked}
-          onClick={onRemove}
+          onClick={remove}
         >
           <Trash2 className="size-4" />
         </Button>
@@ -1106,11 +1224,13 @@ function TemplateSetRow({
   onReps: (targetReps: string | null) => void;
   onRemove: () => void;
 }) {
+  const [leaving, remove] = useExit(onRemove);
   return (
     <div
       className={cn(
         "grid grid-cols-[1.25rem_8rem_1fr_1.75rem] items-center gap-2",
-        enter && enterClsLight,
+        enter && !leaving && enterClsLight,
+        leaving && exitCls,
       )}
     >
       <span className="text-muted-foreground text-xs tabular-nums">{number}</span>
@@ -1143,7 +1263,7 @@ function TemplateSetRow({
         size="icon-sm"
         disabled={!canRemove}
         aria-label="Remove set"
-        onClick={onRemove}
+        onClick={remove}
       >
         <Trash2 className="size-3.5" />
       </Button>
