@@ -195,6 +195,23 @@ function PrevLine({
   );
 }
 
+/**
+ * `value`, but only once it has held true for `ms` — and false again at once.
+ * For status that's only worth showing when something is actually slow.
+ */
+function useAfterDelay(value: boolean, ms: number) {
+  const [shown, setShown] = React.useState(false);
+  React.useEffect(() => {
+    if (!value) return;
+    const t = window.setTimeout(() => setShown(true), ms);
+    return () => {
+      window.clearTimeout(t);
+      setShown(false);
+    };
+  }, [value, ms]);
+  return value && shown;
+}
+
 /** One-line recap for a collapsed, finished exercise: "4 sets · 560 kg". */
 function collapsedSummary(we: WE, unit: "KG" | "LB"): string {
   const timed = we.exercise?.isTimed ?? false;
@@ -352,6 +369,7 @@ export function WorkoutLogger({
 }) {
   const router = useRouter();
   const { online, pending: syncPending } = useOutboxStatus();
+  const slowSync = useAfterDelay(online && syncPending > 0, 1500);
   const [exercises, setExercises] = React.useState<WE[]>(() =>
     loadSnapshot(workout.id, workout.exercises),
   );
@@ -620,25 +638,19 @@ export function WorkoutLogger({
 
   return (
     <div className="flex flex-col gap-3 pb-14 sm:pb-0">
-      {(!online || syncPending > 0) && (
+      {/* Offline is a real change of state, so it gets a line of its own.
+          Routine syncing doesn't: every set edit queues a save, and a banner
+          popping in above everything for the ~0.2s it takes shoved the whole
+          page down 50px on each tap. A sync that's slow shows in the progress
+          bar instead, where it can't move anything. */}
+      {!online && (
         <div
           role="status"
-          className={cn(
-            "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-            online
-              ? "border-primary/30 bg-primary/5 text-primary"
-              : "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400",
-          )}
+          className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-600 dark:text-amber-400"
         >
-          {online ? (
-            <RefreshCw className="size-4 shrink-0 animate-spin" />
-          ) : (
-            <CloudOff className="size-4 shrink-0" />
-          )}
+          <CloudOff className="size-4 shrink-0" />
           <span>
-            {online
-              ? `Syncing ${syncPending} change${syncPending === 1 ? "" : "s"}…`
-              : "Offline — your sets are saved on this device and will sync when you reconnect."}
+            Offline — your sets are saved on this device and will sync when you reconnect.
           </span>
         </div>
       )}
@@ -665,6 +677,14 @@ export function WorkoutLogger({
               }}
             />
           </div>
+          {slowSync ? (
+            <span
+              role="status"
+              className="text-primary flex shrink-0 items-center gap-1 text-xs font-medium"
+            >
+              <RefreshCw className="size-3.5 animate-spin" /> Syncing
+            </span>
+          ) : null}
         </div>
       )}
 
