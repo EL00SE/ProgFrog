@@ -160,6 +160,21 @@
   }
 }
 
+/* iOS bug in Home Screen apps (viewport-fit=cover + black-translucent status
+ * bar): the page is laid out the status bar's height short — 812pt on an
+ * 874pt screen — so `100%`, `dvh`, `svh` and everything `position: fixed;
+ * bottom: 0` (the tab bar) end 62pt above the bottom, over a dead band. `lvh`
+ * still measures the full screen, and a page at least that tall makes iOS grow
+ * the viewport to fit. Standalone only: in a Safari tab `lvh` is the
+ * toolbar-collapsed height, taller than what's visible. Unlayered so it wins
+ * over the `min-h-full` utility on <body>. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    min-height: 100lvh;
+  }
+}
+
 /* A blanket safety net: individual components (the tab pager's swipe/slide)
  * already check prefers-reduced-motion themselves for JS-driven
  * animation, but the shadcn/radix animate-in/out utilities (dialogs, sheets,

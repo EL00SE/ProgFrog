@@ -4,7 +4,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PressFeedback } from "@/components/press-feedback";
 import { ServiceWorker } from "@/components/pwa/service-worker";
-import { ViewportHealer } from "@/components/pwa/viewport-healer";
 import { Toaster } from "@/components/ui/sonner";
 
 import "./globals.css";
@@ -85,7 +84,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Toaster />
           <PressFeedback />
           <ServiceWorker />
-          <ViewportHealer />
         </ThemeProvider>
       </body>
     </html>
